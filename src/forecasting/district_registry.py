@@ -35,6 +35,10 @@ def _load_registry() -> dict[str, DistrictConfig]:
 _REGISTRY = _load_registry()
 
 
+def list_district_configs() -> list[DistrictConfig]:
+    return list(_REGISTRY.values())
+
+
 def get_district_config(district: str) -> DistrictConfig:
     for name, cfg in _REGISTRY.items():
         if name.casefold() == district.casefold():

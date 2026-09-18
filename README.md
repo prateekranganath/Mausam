@@ -3,7 +3,21 @@
 Predicts the probability of **insufficient rainfall over the next 7 days**
 for an Indian district, plus an expected total-rainfall estimate (mm).
 This is a hackathon MVP, not an operational forecasting system — see
-[Limitations](#limitations).
+[Limitations](#known-limitations).
+
+## Contents
+
+[Status](#status) · [Getting started](#getting-started) ·
+[Usage reference](#usage-reference) · [Dataset](#dataset) ·
+[The two workflows](#the-two-workflows-and-why-they-differ) ·
+[Target](#target-definition) · [Features](#features-34) ·
+[Leakage safety](#leakage-safety) · [Models](#models) ·
+[Open-Meteo](#open-meteo-live-integration) ·
+[Forecast pipeline](#forecast-pipeline-end-to-end) ·
+[Backend API](#backend-api) · [Endpoint reference](#endpoint-reference) ·
+[Hugging Face](#hugging-face-packaging-scriptspush_to_huggingfacepy) ·
+[Project structure](#project-structure) · [Testing](#testing) ·
+[Limitations](#known-limitations)
 
 ## Status
 
@@ -11,9 +25,11 @@ This is a hackathon MVP, not an operational forecasting system — see
 model.**
 
 - **`Rainfall_Forecast_Mausam`** (pooled, all-India) — one model trained
-  across 316 districts at once. `scripts/forecast.py` uses this by
-  default: pull once from Hugging Face, forecast any trained district, no
-  per-district training needed. Pushed to
+  across the 316 district entries in the data at once, of which **313 are
+  servable** (see [Which districts are served](#endpoint-reference)).
+  `scripts/forecast.py` and the API use this by default: pull once from
+  Hugging Face, forecast any servable district, no per-district training
+  needed. Pushed to
   [`huggingface.co/neollm007/Rainfall_Forecast_Mausam`](https://huggingface.co/neollm007/Rainfall_Forecast_Mausam).
 - **Per-district models** (`rainfall-risk-<district>`) — the original
   workflow, one model per district, e.g.
@@ -21,27 +37,83 @@ model.**
   Kept available (`--per-district`) — see [Which one should I use](#which-one-should-i-use) for why.
 
 Live forecasting is wired up to [Open-Meteo](https://open-meteo.com)
-(free, no API key) for real recent weather. Backend/dashboard and the
-OpenRouter reasoning layer have not been built yet — everything here runs
-from the command line.
+(free, no API key) for real recent weather. A **FastAPI backend** serves
+the all-India model plus an optional OpenRouter reasoning layer — see
+[Backend API](#backend-api). The dashboard has not been built yet.
 
-## Setup
+## Getting started
+
+Developed and tested on Python 3.13 (Windows). Run everything from the repo root.
+
+### 1. Install
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # fill in HF_TOKEN / OPENROUTER_API_KEY if needed
 ```
 
-## Quickstart
+### 2. Configure `.env`
 
 ```bash
-# Live forecast for any of the 316 trained districts — pulls the model
-# from Hugging Face (cached locally after the first call), pulls recent
-# observed weather from Open-Meteo, no local dataset or training needed.
+cp .env.example .env        # Windows: copy .env.example .env
+```
+
+| Variable | Needed for | Default | Notes |
+|---|---|---|---|
+| `HF_TOKEN` | Pulling the model at API startup | — | The model repo was created **private** by `push_to_huggingface.py`, so a token is required. Without one the API falls back to `models/all-india/`, which exists only if you trained locally (the `.joblib` files are git-ignored). |
+| `HF_USERNAME` | Hugging Face repo names | `neollm007` | |
+| `OPENROUTER_API_KEY` | `/advisory` only | — | |
+| `OPENROUTER_MODEL` | `/advisory` only | — | Any OpenRouter model id; `.env.example` has the recommended free one. |
+| `OPENROUTER_TIMEOUT_SECONDS` | `/advisory` | `60` | Free models can take 20–90s. |
+| `API_ALLOWED_ORIGINS` | CORS for a browser frontend | `http://localhost:3000,http://localhost:5173` | Comma-separated. |
+| `RAINFALL_RISK_THRESHOLD_PERCENTILE` | Training | `33` | Defines "insufficient" (changing it requires retraining). |
+| `DEFAULT_DISTRICT` | CLI scripts | `Thiruvananthapuram` | |
+
+If the OpenRouter variables are unset, `/advisory` still returns HTTP 200
+with `advisory: null` and an `llm_error`; every other endpoint works without them.
+
+### 3. Run the API
+
+```bash
+python -m uvicorn src.api.main:app --host 127.0.0.1 --port 8000
+```
+
+- **Startup takes about 25s** (imports plus loading the model; the first run
+  downloads ~1.3MB of artifacts, cached afterwards). It's ready when you see
+  `Application startup complete`.
+- **Check it:** `curl http://127.0.0.1:8000/health` should return
+  `"status":"ok"` and `"n_districts":313`.
+- **Interactive docs:** <http://127.0.0.1:8000/docs> (Swagger UI); the raw spec is at `/openapi.json`.
+- Add `--reload` while developing. Stop with Ctrl+C.
+- **Port already in use?** Use `--port 8001`, or find the process with `netstat -ano | findstr :8000`.
+
+### 4. Or use the CLI (no server)
+
+```bash
+# Pulls the model from Hugging Face (cached after the first call) and recent
+# weather from Open-Meteo. No local dataset or training needed.
 python scripts/forecast.py --district "Thiruvananthapuram"
 python scripts/forecast.py --district "Jaisalmer"
 python scripts/forecast.py --district "Mumbai Suburban"
 ```
+
+### What you need for what
+
+| To... | You need |
+|---|---|
+| Run the API or CLI forecasts | `pip install` and `HF_TOKEN` (or local model artifacts). **No dataset.** |
+| Use `/historical` | Nothing extra: it calls Open-Meteo live. |
+| Retrain a model | The raw dataset at `Data/india_weather_rainfall_data.xlsx` (git-ignored, ~64MB). Training caches derived files under `Data/processed/`. The all-India run is slow (a grid search over ~270K rows); budget tens of minutes. |
+| Run the tests | `pytest`. Tests are offline: all network calls are mocked. |
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Startup fails with `No model available` | Set `HF_TOKEN`, or train locally with `scripts/train_all_india_model.py`. |
+| `404 District ... cannot be forecast` | The district is excluded (no or incomplete training data); see `/health` → `excluded_districts`. |
+| `503 ... Open-Meteo ... unreachable` | No network and nothing cached. Retry. |
+| `/advisory` is slow or returns `llm_error` | Free OpenRouter models are sometimes overloaded. Retry, or raise `OPENROUTER_TIMEOUT_SECONDS`. |
+| "cache-system uses symlinks" / "hf_xet not installed" warnings | Harmless on Windows. |
 
 ## Usage reference
 
@@ -145,6 +217,22 @@ complete reporting, and drops the small remainder of incomplete rows.
   *and place* instead of one fixed mm cutoff that would be meaningless
   across monsoon vs. dry season, or Kerala vs. Rajasthan.
 
+## Features (34)
+
+All computed per district from daily data available up to day T
+(`src/features/engineering.py`, ordered list in `FEATURE_COLUMNS`):
+
+| Group | Features |
+|---|---|
+| Rainfall lags (3) | `rainfall_lag_1`, `_3`, `_7` |
+| Trailing sums / means (7) | `rainfall_sum_last_3/7/14/30`, `rainfall_rolling_mean_7/14/30` (windows end on T-1) |
+| Dry spell (1) | `consecutive_dry_days` (streak of days under 2.5mm ending T-1) |
+| Local climatology (2) | this district-month's mean and median daily rainfall, learned in training |
+| Same-day weather (6) | `avg_temp`, `min_temp`, `max_temp`, `air_pressure`, `wind_speed`, plus `avg_temp_lag_3` |
+| Season (8) | sin/cos of month and of day-of-year; one-hot IMD season (winter, pre-monsoon, SW monsoon, post-monsoon) |
+| Location (3) | `latitude`, `longitude`, `elevation` (these vary across districts, unlike in a single-district model) |
+| Data-quality flags (4) | `rainfall_missing_frac_last_7`, `temp_/pressure_/wind_missing_flag` |
+
 ## Leakage safety
 
 - Chronological split only, no shuffled CV. Per-district:
@@ -198,7 +286,7 @@ threshold (they never fire an "insufficient" alert at all), which makes
 them functionally useless as a risk-alert system regardless of how
 well-calibrated their probabilities are (lower Brier score). All-India
 is also the only one of the two that could train at all for Jaisalmer,
-and it works out-of-the-box for any of its 316 districts, not just ones
+and it works out-of-the-box for any of its 313 usable districts, not just ones
 individually trained.
 
 **Per-district, if** you specifically need better-calibrated
@@ -228,11 +316,16 @@ live API (not assumed from docs). `RainfallRiskPredictor.predict_live(district)`
 1. Looks up the district's centroid lat/lon (`district_config.json`,
    auto-registered by both training scripts — same coordinates used at
    training time, so live and historical data describe the same place).
-2. Pulls the last ~35 days of Open-Meteo's **observed** weather (never
-   forecast values) for that point, mapped onto the exact same daily
-   schema historical data uses (`to_district_daily_schema`) — including
-   a verified unit fix (`wind_speed_unit=ms`, since Open-Meteo's default
-   km/h didn't match the training data's magnitude).
+2. Pulls the last ~35 days of Open-Meteo's **analysed** past weather (a
+   reanalysis/model blend, not rain-gauge readings) for that point, mapped
+   onto the exact same daily schema historical data uses
+   (`to_district_daily_schema`) — including a verified unit fix
+   (`wind_speed_unit=ms`, since Open-Meteo's default km/h didn't match the
+   training data's magnitude). Forecast days after today are never fed to
+   the model. One caveat: the rainfall features use completed days only,
+   but five same-day features (temperature x3, pressure, wind) come from
+   *today's* row, which is Open-Meteo's estimate and partly forecast, while
+   training saw full observed days — a small train/serve mismatch.
 3. Runs it through the identical feature-engineering/preprocessing code
    used in training, then the trained classifier + regressor.
 4. Separately reports Open-Meteo's own forward-looking forecast
@@ -241,8 +334,248 @@ live API (not assumed from docs). `RainfallRiskPredictor.predict_live(district)`
    output, since they answer different questions (ours: "unusually dry
    vs. local history?"; Open-Meteo's: "what does live NWP guidance say").
 
-Includes response caching (1hr TTL), retries with backoff, and a
-stale-cache fallback if the live API is unreachable.
+Two Open-Meteo endpoints are used, for different jobs: the **forecast**
+endpoint (`past_days` + `forecast_days`) for the model's live inputs and the
+comparison forecast, and the **archive** endpoint (explicit
+`start_date`/`end_date`) for `/historical`. The forecast endpoint's
+`past_days` is documented as up to 92, but measured on 2026-09-18 its oldest
+~22 rows came back null for every location tried (data was non-null only
+from 2026-07-10, i.e. ~70 usable days) — fine for the model's 35-day window,
+but too short for a history chart, hence the archive endpoint.
+
+Both share one client path with response caching (1hr TTL), retries with
+backoff, and a stale-cache fallback if the live API is unreachable.
+
+## Forecast pipeline, end to end
+
+What happens from process start to the JSON a client receives. Values below
+are from a real run for Kolkata on 2026-09-18.
+
+```
+ STARTUP (once)                          PER REQUEST  GET /forecast/Kolkata
+ ──────────────                          ─────────────────────────────────
+ Hugging Face ─► 4 artifacts             resolve district ─► lat/lon
+ ─► RainfallRiskPredictor                       │
+ ─► servable_districts (313)             ONE Open-Meteo call (35 past + 8 forecast days)
+                                                │
+                              rows ≤ today (36) ─┴─ rows > today (7)
+                                   │                        │
+                          build 34 features       Open-Meteo's own 7-day total
+                          + climatology join                │
+                                   │                        │
+                       classifier + regressor               │
+                                   └───────────► agreement ◄┘
+```
+
+### At startup (`src/api/main.py`, once per process)
+
+1. `from_pretrained_all_india()` downloads four files from
+   `neollm007/Rainfall_Forecast_Mausam` (reused from the Hugging Face cache
+   afterwards): the Platt-calibrated XGBoost **classifier**, the XGBoost
+   **regressor**, the **preprocessor**, and `model_metadata.json`. If the Hub
+   is unreachable it loads `models/all-india/` instead; with neither, startup
+   fails loudly.
+2. The preprocessor carries what training learned: per-(district, month)
+   climatology, per-(district, month) "insufficient" thresholds, median fill
+   values and the ordered 34-feature list.
+3. `servable_districts` compares the metadata's 316 entries with what the
+   preprocessor actually learned, leaving 313.
+4. `evaluation_results.json` is loaded for `/model/metrics`.
+
+### Per request
+
+| # | Stage | Code | Kolkata example |
+|---|---|---|---|
+| 1 | Resolve the district | `routes._resolve` | Case-insensitive; 404 if unknown or excluded → centroid (22.59, 88.39) |
+| 2 | One Open-Meteo call | `open_meteo.fetch_daily_weather` | 43 rows, 2026-08-14 to 2026-09-25 (cached 1h) |
+| 3 | Map to the training schema | `to_district_daily_schema` | Same columns and units the model was trained on (wind in m/s) |
+| 4 | Split at today | `RainfallRiskPredictor.predict` | 36 rows ≤ today go to the model; 7 later rows are held back |
+| 5 | Build 34 features | `engineering.build_features` | `rainfall_sum_last_7` = 47.9mm, `_last_30` = 324.4mm, `consecutive_dry_days` = 0 |
+| 6 | Join climatology, fill gaps | `preprocessor.transform` | September climatology: mean 14.83, median 4.33 mm/day; 0 NaNs to fill |
+| 7 | Score with both models | `predict` | P(unusually dry week) = **0.4959** → `MODERATE`; expected rainfall **99.16mm** |
+| 8 | Compare with Open-Meteo | `compute_agreement` | Open-Meteo 95.7mm; Kolkata's September threshold 61.06mm → both above it, sources agree, gap 3.46mm |
+| 9 | Shape the response | `routes._build_forecast` | `ml_model`, `open_meteo_forecast`, `agreement` |
+
+`/advisory` adds one step: it sends the numbers to OpenRouter, validates the
+structured reply, and checks every number in the prose against the input.
+
+**Risk bands.** `risk_level` is a bucketing of the classifier's probability:
+≥0.66 `HIGH`, ≥0.33 `MODERATE`, otherwise `LOW`. Those cutoffs are a
+presentation choice, not calibrated to any outcome.
+
+### What is, and isn't, an input to the model
+
+Measured by changing parts of the Open-Meteo data and re-running the model
+(baseline 0.4959 / 99.16mm):
+
+| Change | Prediction moved? |
+|---|---|
+| Future days: rainfall set to 500mm, or temperature +15°C | **No** |
+| Past 7 days: rainfall set to 0 | Yes (0.5429, 78.70mm) |
+| Past 30 days: rainfall doubled | Yes (0.5341, 81.90mm) |
+| Today's rainfall set to 500mm | **No** |
+| Today's temperature +10°C | Yes (0.5908, 97.97mm) |
+
+What follows from this:
+- **The model uses Open-Meteo's recent weather, not its forecast.** Forecast
+  days never enter the feature vector; they only feed the comparison.
+- **Today is a partial exception.** Rainfall features use completed days only,
+  but five same-day features (temperature ×3, pressure, wind) come from today's
+  row, which is Open-Meteo's estimate and partly forecast. Training saw full
+  observed days, so this is a small train/serve mismatch.
+- **The two sources are not independent.** Both come from Open-Meteo (the
+  model reads its recent weather; the comparison uses its forecast), so
+  "sources agree" is weaker evidence than two independent forecasters agreeing.
+- **The model isn't physically monotone.** Doubling recent rain *lowered* the
+  expected rainfall. That was an extreme change and may be an out-of-range
+  artefact, but it shows the model learned patterns, not weather physics.
+- **Classifier and regressor can disagree.** Kolkata got `MODERATE` risk while
+  the regressor and Open-Meteo both point to a wet week. They are separate models.
+
+## Backend API
+
+Run it with the steps in [Getting started](#3-run-the-api). It serves **only the pooled all-India model** (per-district models stay
+CLI-only — see the comparison above). The model is pulled from Hugging Face
+once at startup (falling back to `models/all-india/` if the Hub is
+unreachable), then shared across requests.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Model loaded, version, district count, whether the LLM is configured |
+| `GET /districts?q=` | The 313 servable districts with coordinates (for a dropdown) |
+| `GET /forecast/{district}` | ML risk + Open-Meteo forecast + agreement check. **No LLM** — fast and always available |
+| `GET /historical/{district}?days=90` | Last N days (1-730) of weather fetched **live** from Open-Meteo's archive API, ending yesterday |
+| `GET /model/metrics?district=` | Held-out test metrics vs. the climatology baseline |
+| `GET /advisory/{district}` | Everything in `/forecast` plus an LLM-written structured advisory |
+
+### Endpoint reference
+
+All six endpoints are `GET` and **take no request body**: parameters go in the
+path or query string. In Postman, import `http://127.0.0.1:8000/openapi.json`
+(Import → Link) to generate every request. District names are case-insensitive
+and must be URL-encoded (`Mumbai Suburban` → `Mumbai%20Suburban`; Postman does
+this for you). Four names need their state suffix: `Raipur (CT)`,
+`Raipur (MP)`, `Cuddalore (TN)`, `Cuddalore (PY)` (plain `Raipur` is a 404).
+
+| Endpoint | Parameters | Returns |
+|---|---|---|
+| `GET /health` | — | `status`, `model_loaded`, `model_name`, `model_version`, `classifier`, `n_districts` (313), `excluded_districts` (name → reason), `openrouter_configured` |
+| `GET /districts` | `q` (optional): substring of name or state | `count` and `districts[]` of `{name, state, latitude, longitude, elevation}` |
+| `GET /forecast/{district}` | — | `ml_model`, `open_meteo_forecast`, `agreement` (below) |
+| `GET /historical/{district}` | `days` 1–730 (default 90) | `source`, `requested_days`, `n_points`, `data_start`, `data_end`, `missing_rainfall_days`, `units`, `data[]` of `{date, rainfall, avg_temp, min_temp, max_temp, wind_speed, air_pressure, relative_humidity}` |
+| `GET /model/metrics` | `district` (optional; only 6 sampled districts have per-district metrics: Bengaluru Urban, Jaisalmer, Kolkata, Mumbai Suburban, New Delhi, Thiruvananthapuram) | Test metrics for `classifier`, `baseline`, `regressor`, `baseline_regression`, date ranges, `district_metrics` |
+| `GET /advisory/{district}` | — | `forecast` (same as `/forecast`), `advisory`, `unsupported_numbers`, `llm_model`, `llm_error` |
+
+**Read `rainfall_probability` carefully: despite the name it is the
+probability of *insufficient* rainfall** (that the next 7 days are unusually
+dry for this district and month). A high value means *drier*, not wetter.
+
+Abridged `GET /forecast/Kolkata`:
+
+```json
+{
+  "district": "Kolkata", "state": "WB", "as_of_date": "2026-09-18",
+  "ml_model": {
+    "rainfall_probability": 0.4959, "risk_level": "MODERATE",
+    "predicted_rainfall_mm": 99.16, "forecast_horizon_days": 7,
+    "model": "xgboost", "model_version": "0.1.0"
+  },
+  "open_meteo_forecast": {
+    "total_precipitation_sum_mm": 95.7,
+    "mean_daily_precipitation_probability_percent": 94.1,
+    "forecast_days": 7,
+    "daily": [{"time": "2026-09-24", "precipitation_sum": 16.8, "precipitation_probability_max": 100}]
+  },
+  "agreement": {
+    "ml_predicted_mm": 99.16, "open_meteo_forecast_mm": 95.7, "difference_mm": 3.46,
+    "magnitude_diverges": false, "threshold_mm": 61.06, "threshold_degenerate": false,
+    "ml_implies_insufficient": false, "open_meteo_implies_insufficient": false,
+    "sources_agree": true
+  }
+}
+```
+
+`GET /advisory/{district}` adds this structured object (all six fields always present):
+
+```json
+"advisory": {
+  "forecast_summary": "...", "rainfall_risk": "LOW",
+  "confidence": 0.5,
+  "key_factors": ["..."], "model_disagreement": ["..."], "advisory": ["..."]
+}
+```
+
+`/advisory` takes roughly 20–45s on the free model and is cached in-process
+for an hour (lost on restart).
+
+| Status | When |
+|---|---|
+| `200` | Success. Also `/advisory` when the LLM fails: `advisory: null` plus `llm_error`. |
+| `404` | Unknown district; an excluded district (the reason is given); `/model/metrics?district=` for a district without sampled metrics (lists the available ones). |
+| `422` | Invalid parameter, e.g. `days` outside 1–730. |
+| `503` | Open-Meteo unreachable with nothing cached; Open-Meteo returned no usable data; evaluation results unavailable. |
+
+**Which districts are served.** Only districts the model learned local
+statistics for in *every* calendar month: **313 of the 316 in the data**.
+The other three are refused with a 404 giving the reason, and listed in
+`/health` under `excluded_districts`: Raisen and Vidisha have no training
+data (their records begin 2023-07-05, after the training window ends), and
+Bathinda never saw July in training. Serving them would return a
+confident-looking number with no local basis. The rule lives in
+`servable_districts` (`src/api/state.py`) and also applies to
+`scripts/forecast.py`.
+
+**What `/historical` returns.** Daily rainfall, min/max/mean temperature,
+wind, pressure and humidity for the district's centroid, straight from
+Open-Meteo's archive API — no local dataset needed, so it works on a fresh
+clone and reaches yesterday (the old dataset-backed version stopped at
+2025-02-10). Today is excluded because its value is still partly a
+forecast. The values are **reanalysis, not rain-gauge observations**, so they
+can differ from the station dataset the model was trained on, and the most
+recent days are preliminary and may be revised. Requested windows are rounded
+up to 30/90/180/365/730 days for the on-disk cache (so its size stays bounded
+however many `days` values clients try), but you always get exactly the days
+you asked for. Trailing days Open-Meteo hasn't filled yet are trimmed so
+`data_end` is honest; `n_points` can then be lower than `requested_days`.
+
+**How a `/forecast` is built.** See [Forecast pipeline, end to end](#forecast-pipeline-end-to-end) for the full trace, including exactly which Open-Meteo data feeds the model and which is used only for comparison.
+
+**"Agreement", not "validation".** Open-Meteo is itself a forecast, so it
+can't validate our model — real validation needs observed rainfall for the
+forecast window (i.e. storing predictions and waiting a week; not built). The
+`agreement` block compares the two 7-day totals directly, and applies the
+model's own learned (district, month) threshold to both so "insufficient"
+means the same thing on each side. It flags `magnitude_diverges` when the two
+totals differ substantially, even if both land on the same side of the
+threshold.
+
+**The LLM layer (`/advisory`)** is given the numbers and asked only to
+summarise, explain disagreement, and give general guidance, as structured
+JSON. It is **not a source of weather data**: the prompt forbids inventing
+numbers, and every number in its narrative is checked against the input —
+anything untraceable is returned in `unsupported_numbers` rather than hidden.
+If OpenRouter is unconfigured or failing, `/advisory` still returns HTTP 200
+with the full numeric forecast and `advisory: null` + `llm_error`, so the
+numbers never depend on the narrative. Set `OPENROUTER_API_KEY` and
+`OPENROUTER_MODEL`. Only **free** models are used. Measured through this
+client with a realistic payload:
+
+| Free model | Result |
+|---|---|
+| `nvidia/nemotron-3-super-120b-a12b:free` | **Recommended** — valid output in ~20s |
+| `nvidia/nemotron-3-ultra-550b-a55b:free` | Works, valid, but ~75s |
+| `nvidia/nemotron-3.5-lightning:free` | Works but ~190s, and copied a probability into `confidence` |
+| `thinkingmachines/inkling:free`, `inkling-small:free` | **Unusable** — HTTP 403, "only available on agentic harnesses" |
+
+Free models are sometimes overloaded (OpenRouter returns HTTP 200 with an
+`error` body; the client honours the embedded code, retrying transient
+503/429 but not permanent 4xx or timeouts). Raise `OPENROUTER_TIMEOUT_SECONDS`
+for slower models.
+
+Notes: the district registry is read at import time, so retraining (which
+rewrites `district_config.json`) needs a server restart. Handlers are plain
+`def` on purpose — forecasting does blocking I/O, and `async def` would
+freeze the event loop. `API_ALLOWED_ORIGINS` controls CORS.
 
 ## Hugging Face packaging (`scripts/push_to_huggingface.py`)
 
@@ -254,6 +587,44 @@ the API. `RainfallRiskPredictor.from_pretrained_all_india()` /
 `.from_pretrained(district)` pull artifacts back down, cached locally by
 `huggingface_hub` after the first call — no retraining needed in future
 sessions.
+
+## Project structure
+
+```
+Data/                         raw dataset (git-ignored) and Data/processed/ caches (git-ignored)
+models/
+  all-india/                  pooled model: metadata, eval JSON, model card tracked; .joblib git-ignored
+  <district>/                 per-district models (same layout)
+  comparison_results.json     output of scripts/compare_models.py
+scripts/                      CLI entry points (train, evaluate, compare, forecast, push, prepare data)
+src/
+  config.py                   paths, split dates, env vars, constants
+  data/                       loader.py, cleaner.py, district.py (raw data → daily district series)
+  features/engineering.py     features, target, leakage-safe preprocessor
+  ml/                         train.py, train_all_india.py, baseline.py, evaluate.py, predict.py
+  forecasting/                open_meteo.py, district_registry.py (+ district_config.json), agreement.py
+  llm/openrouter.py           structured-output client + number tripwire
+  api/                        main.py (app, startup), routes.py, schemas.py, state.py
+tests/                        104 tests, all offline
+```
+
+## Testing
+
+```bash
+python -m pytest tests/ -v
+```
+
+104 tests, all offline (Open-Meteo, OpenRouter and the model are stubbed), so
+they need no network or keys and cost nothing to run:
+
+| File | Tests | Covers |
+|---|---|---|
+| `test_engineering.py` | 9 | Target construction, no-leakage of lag/rolling features, per-district isolation |
+| `test_district.py` | 6 | Station aggregation, gap days, ambiguous names |
+| `test_agreement.py` | 11 | Cross-source comparison, divergence flag, degenerate thresholds |
+| `test_open_meteo.py` | 19 | Cache, retries, stale fallback, archive windows and bucketing |
+| `test_openrouter.py` | 31 | Schema validation, retry rules, embedded HTTP-200 errors, number tripwire |
+| `test_api.py` | 28 | Every endpoint, error paths, excluded districts, NaN handling |
 
 ## Known limitations
 
@@ -276,7 +647,29 @@ sessions.
 - Not validated against independent ground-truth rainfall records beyond
   the dataset's own test split. Not an operational forecast — does not
   claim panchayat-level accuracy.
-- Not yet built: FastAPI backend, React dashboard, OpenRouter reasoning
-  layer, ensemble with external forecast sources (investigated — no
-  second genuinely usable free/public source was found; see git history
-  for the writeup).
+- Not yet built: React dashboard, stored prediction history (so no real
+  backtest against observed rainfall yet), and an ensemble with external
+  forecast sources (investigated — no second genuinely usable free/public
+  source was found; see git history for the writeup).
+- `/historical` is reanalysis from Open-Meteo, a different product from
+  the station dataset the model was trained on; the two won't match exactly.
+- **The API is not production-hardened**: no authentication, no rate
+  limiting, and the advisory cache lives in process memory. It is a
+  hackathon MVP meant to sit behind a frontend or gateway.
+- **Seasonal coverage varies a lot.** The "insufficient rainfall" label only
+  means something where a dry week is unusual. Districts (of the 314 with
+  thresholds) where the threshold is under 1mm, so the label can't
+  meaningfully fire, by month:
+
+  | Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | 265 | 286 | 265 | 211 | 136 | 27 | 4 | 2 | 5 | 166 | 241 | 265 |
+
+  So the rainfall estimate and Open-Meteo comparison are always available,
+  but the risk label is informative for nearly every district in
+  Jun–Sep and for only a small minority in winter. Each `/forecast` response
+  flags this with `agreement.threshold_degenerate`.
+- The agreement check compares two forecasts; it says nothing about which
+  is right. In very dry districts the model's threshold collapses to ~0mm,
+  so "insufficient" can never register there — visible as
+  `threshold_mm: 0.0` in the response.

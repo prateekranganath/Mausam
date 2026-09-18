@@ -1,20 +1,43 @@
+# --- secrets ---------------------------------------------------------------
+# Real keys live here; .env.example (tracked) documents the variables.
 .env
+
+# --- python ----------------------------------------------------------------
 __pycache__/
 *.pyc
 .venv/
 venv/
-.claude/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
 
-# Large raw dataset — kept locally per project instructions (never
-# modified), not committed to keep the repo lightweight. Trained model
-# artifacts are on Hugging Face (each model's README.md/model card);
-# .joblib files are reproducible via scripts/train_model.py and
-# scripts/train_all_india_model.py. metadata/evaluation JSON and model
-# cards are small and worth diffing, so those stay tracked.
+# --- editors / OS / tooling ------------------------------------------------
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- logs ------------------------------------------------------------------
+*.log
+
+# --- data ------------------------------------------------------------------
+# The raw dataset is large and kept locally (never modified in place).
 Data/india_weather_rainfall_data.xlsx
+# Everything derived from it, plus the Open-Meteo response cache
+# (Data/processed/open_meteo_cache/: forecast_*.json and history_*.json).
+# All regenerable, so none of it is committed. The API no longer needs any
+# local dataset: /historical reads live from Open-Meteo.
 Data/processed/
+
+# --- trained model artifacts -----------------------------------------------
+# Binary artifacts live on Hugging Face and are reproducible with
+# scripts/train_model.py / scripts/train_all_india_model.py. The small
+# metadata, evaluation JSON and model cards stay tracked because they diff
+# well and document what was trained.
 models/**/*.joblib
 models/**/plots/
-
-*.log
-.pytest_cache/

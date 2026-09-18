@@ -17,6 +17,7 @@ alone:
 """
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import logging
@@ -31,6 +32,10 @@ from src.config import OPEN_METEO_CACHE_DIR
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
+# Historical/reanalysis endpoint: same variables and units, arbitrary
+# start_date/end_date. Used for /historical because the forecast endpoint's
+# past_days only holds ~70 usable days (its oldest rows come back null).
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 DAILY_VARS = [
     "temperature_2m_max",
@@ -42,6 +47,24 @@ DAILY_VARS = [
     "pressure_msl_mean",
     "relative_humidity_2m_mean",
 ]
+
+# precipitation_probability_max only exists for forecast days
+HISTORICAL_DAILY_VARS = [v for v in DAILY_VARS if v != "precipitation_probability_max"]
+
+# Requested windows are rounded UP to one of these so the on-disk cache holds
+# at most len(buckets) files per district, however many distinct `days`
+# values clients try. The caller still gets exactly the days it asked for.
+HISTORICAL_WINDOW_BUCKETS = (30, 90, 180, 365, 730)
+MAX_HISTORICAL_DAYS = HISTORICAL_WINDOW_BUCKETS[-1]
+
+# All Indian districts are in one timezone, so "yesterday" is well defined
+# without a tz database (zoneinfo needs the tzdata package on Windows).
+_IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+
+
+def _today_ist() -> dt.date:
+    return dt.datetime.now(_IST).date()
+
 
 # Maps Open-Meteo's daily column names onto our trained feature schema's
 # raw daily columns (src.data.district.get_district_daily_series output).
@@ -108,12 +131,6 @@ def fetch_daily_weather(
       pressure_msl_mean, relative_humidity_2m_mean
     """
     cache_file = _cache_path(latitude, longitude, past_days, forecast_days)
-
-    cached = _read_cache(cache_file)
-    if cached is not None:
-        logger.info("Open-Meteo cache hit for (%.4f, %.4f)", latitude, longitude)
-        return pd.DataFrame(cached["daily"])
-
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -123,20 +140,60 @@ def fetch_daily_weather(
         "timezone": "auto",
         "wind_speed_unit": "ms",
     }
+    label = f"({latitude:.4f}, {longitude:.4f}) past_days={past_days} forecast_days={forecast_days}"
+    return pd.DataFrame(_get_payload(BASE_URL, params, cache_file, label)["daily"])
+
+
+def fetch_historical_weather(latitude: float, longitude: float, days: int) -> pd.DataFrame:
+    """The last `days` COMPLETE days (ending yesterday, IST) for one point,
+    from Open-Meteo's archive API. Today is excluded because its daily value
+    is still partly a forecast. The most recent days are preliminary
+    reanalysis and may be revised.
+
+    Same cache/retry/stale-fallback behaviour as fetch_daily_weather. Returns
+    exactly `days` rows (oldest first) with columns time and the
+    HISTORICAL_DAILY_VARS.
+    """
+    if not 1 <= days <= MAX_HISTORICAL_DAYS:
+        raise ValueError(f"days must be between 1 and {MAX_HISTORICAL_DAYS}, got {days}")
+
+    bucket = next(b for b in HISTORICAL_WINDOW_BUCKETS if b >= days)
+    end = _today_ist() - dt.timedelta(days=1)
+    start = end - dt.timedelta(days=bucket - 1)
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "daily": ",".join(HISTORICAL_DAILY_VARS),
+        "timezone": "auto",
+        "wind_speed_unit": "ms",
+    }
+    key = hashlib.sha1(f"{latitude:.4f}_{longitude:.4f}_{bucket}".encode()).hexdigest()[:16]
+    label = f"({latitude:.4f}, {longitude:.4f}) history {start}..{end}"
+    payload = _get_payload(ARCHIVE_URL, params, OPEN_METEO_CACHE_DIR / f"history_{key}.json", label)
+    return pd.DataFrame(payload["daily"]).tail(days).reset_index(drop=True)
+
+
+def _get_payload(url: str, params: dict, cache_file: Path, label: str) -> dict:
+    """GET with a TTL disk cache, retries with backoff, and a stale-cache
+    fallback (with a logged warning) if the live call keeps failing. Raises
+    OpenMeteoError only when the call fails AND nothing is cached."""
+    cached = _read_cache(cache_file)
+    if cached is not None:
+        logger.info("Open-Meteo cache hit for %s", label)
+        return cached
 
     last_error: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            logger.info(
-                "Open-Meteo request (%.4f, %.4f) past_days=%d forecast_days=%d (attempt %d/%d)",
-                latitude, longitude, past_days, forecast_days, attempt, MAX_RETRIES,
-            )
-            resp = requests.get(BASE_URL, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
+            logger.info("Open-Meteo request %s (attempt %d/%d)", label, attempt, MAX_RETRIES)
+            resp = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
             resp.raise_for_status()
             payload = resp.json()
             with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(payload, f)
-            return pd.DataFrame(payload["daily"])
+            return payload
         except (requests.RequestException, ValueError) as exc:
             last_error = exc
             logger.warning("Open-Meteo request failed (attempt %d/%d): %s", attempt, MAX_RETRIES, exc)
@@ -146,14 +203,13 @@ def fetch_daily_weather(
     stale = _read_stale_cache(cache_file)
     if stale is not None:
         logger.warning(
-            "Open-Meteo unreachable after %d attempts; serving stale cache from %s",
-            MAX_RETRIES, cache_file,
+            "Open-Meteo unreachable after %d attempts; serving stale cache from %s", MAX_RETRIES, cache_file
         )
-        return pd.DataFrame(stale["daily"])
+        return stale
 
     raise OpenMeteoError(
         f"Open-Meteo request failed after {MAX_RETRIES} attempts and no cached "
-        f"fallback exists for ({latitude}, {longitude}): {last_error}"
+        f"fallback exists for {label}: {last_error}"
     )
 
 

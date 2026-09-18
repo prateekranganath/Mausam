@@ -103,6 +103,13 @@ MODEL_VERSION = "0.1.0"
 HF_TOKEN = os.getenv("HF_TOKEN")
 HF_USERNAME = os.getenv("HF_USERNAME", "neollm007")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
+
+API_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv("API_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    if o.strip()
+]
 
 
 def hf_repo_id(district: str) -> str:

@@ -19,6 +19,7 @@ requests
 # Tests
 pytest
 
-# Phase 17 — backend (added when the FastAPI service is built)
-# fastapi
-# uvicorn
+# Phase 17 — FastAPI backend + OpenRouter reasoning layer
+fastapi
+uvicorn
+httpx

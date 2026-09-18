@@ -213,8 +213,11 @@ class RainfallRiskPredictor:
             "local_model": local_result.to_dict(),
             "open_meteo_forecast": native_forecast,
             "note": (
-                "local_model is our trained model, run on Open-Meteo's OBSERVED "
-                "past weather up to as_of_date (never future/forecast values). "
+                "local_model is our trained model, run on Open-Meteo's analysed "
+                "past weather up to as_of_date. Its rainfall features use only "
+                "completed days; today's temperature, wind and pressure are "
+                "Open-Meteo's estimate for today (partly forecast). Forecast "
+                "days after as_of_date are never fed to the model. "
                 "open_meteo_forecast is Open-Meteo's own independent forward "
                 "forecast. These are different quantities and are reported "
                 "separately, not combined into a single number."

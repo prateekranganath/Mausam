@@ -48,6 +48,18 @@ def main() -> None:
     else:
         predictor = RainfallRiskPredictor.load_local_all_india() if args.local_model else RainfallRiskPredictor.from_pretrained_all_india()
 
+    if not args.per_district:
+        # same usable-district rule as the API: refuse districts the pooled
+        # model has no (complete) local statistics for, rather than print a
+        # confident number with no local basis
+        from src.api.state import servable_districts
+        from src.forecasting.district_registry import get_district_config
+
+        _, excluded = servable_districts(predictor)
+        canonical = get_district_config(args.district).district
+        if canonical in excluded:
+            raise SystemExit(f"Cannot forecast '{canonical}': {excluded[canonical]}.")
+
     result = predictor.predict_live(args.district)
     print(json.dumps(result, indent=2, default=str))
 
