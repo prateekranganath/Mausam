@@ -22,11 +22,10 @@ from xgboost import XGBClassifier, XGBRegressor
 from src.config import (
     DEFAULT_DISTRICT,
     MODEL_VERSION,
-    MODELS_DIR,
-    PLOTS_DIR,
     RAINFALL_RISK_THRESHOLD_PERCENTILE,
     RAW_DATA_PATH,
     SPLIT_DATES,
+    local_model_dir,
 )
 from src.data.cleaner import clean_dataset
 from src.data.district import get_district_daily_series
@@ -213,20 +212,24 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
     logger.info("  baseline: %s", results["baseline_regression"])
     logger.info("  model:    %s", results["regressor"])
 
+    # --- output dir (per-district, never overwrites another district) --
+    out_dir = local_model_dir(district)
+    plots_dir = out_dir / "plots"
+
     # --- plots -----------------------------------------------------
     ev.plot_roc_curves(
         y_class["test"],
         {"baseline (climatology)": baseline_test_proba, f"{chosen_name} (calibrated)": model_test_proba},
-        PLOTS_DIR / "roc_curve.png",
+        plots_dir / "roc_curve.png",
     )
     ev.plot_calibration_curves(
         y_class["test"],
         {"baseline (climatology)": baseline_test_proba, f"{chosen_name} (calibrated)": model_test_proba},
-        PLOTS_DIR / "calibration_curve.png",
+        plots_dir / "calibration_curve.png",
     )
     ev.plot_confusion_matrix(
         np.array(results["classifier"]["confusion_matrix"]["matrix"]),
-        PLOTS_DIR / "confusion_matrix.png",
+        plots_dir / "confusion_matrix.png",
         title=f"{chosen_name} — test set",
     )
     base_model_for_importance = chosen_clf_result["model"]
@@ -234,28 +237,34 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
         ev.plot_feature_importance(
             FEATURE_COLUMNS,
             base_model_for_importance.feature_importances_,
-            PLOTS_DIR / "feature_importance.png",
+            plots_dir / "feature_importance.png",
         )
 
     # --- save artifacts ----------------------------------------------
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(calibrated_clf, MODELS_DIR / "rainfall_risk_classifier.joblib")
-    joblib.dump(chosen_regressor, MODELS_DIR / "rainfall_amount_regressor.joblib")
-    joblib.dump(preprocessor, MODELS_DIR / "preprocessor.joblib")
-    joblib.dump(baseline, MODELS_DIR / "climatology_baseline.joblib")
+    joblib.dump(calibrated_clf, out_dir / "rainfall_risk_classifier.joblib")
+    joblib.dump(chosen_regressor, out_dir / "rainfall_amount_regressor.joblib")
+    joblib.dump(preprocessor, out_dir / "preprocessor.joblib")
+    joblib.dump(baseline, out_dir / "climatology_baseline.joblib")
 
     feature_schema = {
         "feature_columns": FEATURE_COLUMNS,
         "target_classification": "insufficient_rainfall_next_7_days",
         "target_regression": "rainfall_next_7_days",
     }
-    with open(MODELS_DIR / "feature_schema.json", "w", encoding="utf-8") as f:
+    with open(out_dir / "feature_schema.json", "w", encoding="utf-8") as f:
         json.dump(feature_schema, f, indent=2)
+
+    centroid = {
+        "latitude": float(daily["latitude"].iloc[0]),
+        "longitude": float(daily["longitude"].iloc[0]),
+        "elevation": float(daily["elevation"].iloc[0]),
+    }
 
     metadata = {
         "model_version": MODEL_VERSION,
         "district": daily["district"].iloc[0],
         "state": daily["state"].iloc[0],
+        **centroid,
         "source_file": RAW_DATA_PATH.name,
         "forecast_horizon_days": 7,
         "classifier_model_name": chosen_name,
@@ -285,11 +294,29 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
             "implausible feature combinations."
         ),
     }
-    with open(MODELS_DIR / "model_metadata.json", "w", encoding="utf-8") as f:
+    with open(out_dir / "model_metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, default=str)
 
-    with open(MODELS_DIR / "evaluation_results.json", "w", encoding="utf-8") as f:
+    with open(out_dir / "evaluation_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, default=str)
 
-    logger.info("Artifacts saved to %s", MODELS_DIR)
+    _register_district_config(metadata["district"], metadata["state"], centroid)
+
+    logger.info("Artifacts saved to %s", out_dir)
     return results
+
+
+def _register_district_config(district: str, state: str, centroid: dict) -> None:
+    """Auto-register this district's coordinates for live Open-Meteo
+    forecasting (src/forecasting/district_registry.py), so training a new
+    district also makes scripts/forecast.py work for it immediately —
+    no manual district_config.json editing needed.
+    """
+    from src.config import DISTRICT_CONFIG_PATH
+
+    with open(DISTRICT_CONFIG_PATH, encoding="utf-8") as f:
+        registry = json.load(f)
+    registry[district] = {"state": state, **centroid}
+    with open(DISTRICT_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(registry, f, indent=2)
+    logger.info("Registered %s in %s for live forecasting", district, DISTRICT_CONFIG_PATH)

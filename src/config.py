@@ -21,11 +21,24 @@ load_dotenv(PROJECT_ROOT / ".env")
 RAW_DATA_PATH = PROJECT_ROOT / "Data" / "india_weather_rainfall_data.xlsx"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "Data" / "processed"
 MODELS_DIR = PROJECT_ROOT / "models"
-PLOTS_DIR = MODELS_DIR / "plots"
 
 PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
-PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def district_slug(district: str) -> str:
+    return district.replace(" ", "-").lower()
+
+
+def local_model_dir(district: str) -> Path:
+    """Each district's local artifacts live in their own subfolder, so
+    training a second district never overwrites the first — matches the
+    per-district repo naming already used on Hugging Face (hf_repo_id).
+    """
+    path = MODELS_DIR / district_slug(district)
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "plots").mkdir(parents=True, exist_ok=True)
+    return path
 
 RAW_CLEANED_CACHE = PROCESSED_DATA_DIR / "raw_cleaned.parquet"
 
@@ -93,8 +106,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 
 def hf_repo_id(district: str) -> str:
-    """Must match the slug used by scripts/push_to_huggingface.py."""
-    return f"{HF_USERNAME}/rainfall-risk-{district.replace(' ', '-').lower()}"
+    return f"{HF_USERNAME}/rainfall-risk-{district_slug(district)}"
 
 
 @dataclass(frozen=True)

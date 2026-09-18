@@ -1,13 +1,13 @@
 """Upload trained model artifacts to Hugging Face Hub (https://huggingface.co/neollm007).
 
-What this uploads (nothing else):
-    models/rainfall_risk_classifier.joblib   — calibrated classifier
-    models/rainfall_amount_regressor.joblib  — regressor for expected mm
-    models/preprocessor.joblib               — climatology/threshold/imputer, fit on train only
-    models/climatology_baseline.joblib       — the baseline this model is compared against
-    models/feature_schema.json               — feature column order/names
-    models/model_metadata.json               — target definitions, thresholds, split dates, version
-    models/evaluation_results.json           — test-set metrics (baseline vs model)
+What this uploads (nothing else), from models/<district>/:
+    rainfall_risk_classifier.joblib   — calibrated classifier
+    rainfall_amount_regressor.joblib  — regressor for expected mm
+    preprocessor.joblib               — climatology/threshold/imputer, fit on train only
+    climatology_baseline.joblib       — the baseline this model is compared against
+    feature_schema.json               — feature column order/names
+    model_metadata.json               — target definitions, thresholds, split dates, version
+    evaluation_results.json           — test-set metrics (baseline vs model)
     A generated README.md model card summarizing all of the above.
 
 Nothing else in the repo (raw data, .env, source code) is uploaded.
@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.config import HF_TOKEN, MODELS_DIR, hf_repo_id
+from src.config import DEFAULT_DISTRICT, HF_TOKEN, hf_repo_id, local_model_dir
 
 REQUIRED_FILES = [
     "rainfall_risk_classifier.joblib",
@@ -169,25 +169,29 @@ leakage from the T+1..T+7 forecast window) — see the source repository's
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--district", default=DEFAULT_DISTRICT)
     parser.add_argument("--repo-id", default=None)
     parser.add_argument("--dry-run", action="store_true", help="Build everything but do not call the HF API")
     args = parser.parse_args()
 
-    missing = [f for f in REQUIRED_FILES if not (MODELS_DIR / f).exists()]
+    models_dir = local_model_dir(args.district)
+
+    missing = [f for f in REQUIRED_FILES if not (models_dir / f).exists()]
     if missing:
         raise FileNotFoundError(
-            f"Missing artifacts {missing} in {MODELS_DIR} — run scripts/train_model.py first."
+            f"Missing artifacts {missing} in {models_dir} — run "
+            f"scripts/train_model.py --district \"{args.district}\" first."
         )
 
-    with open(MODELS_DIR / "model_metadata.json", encoding="utf-8") as f:
+    with open(models_dir / "model_metadata.json", encoding="utf-8") as f:
         metadata = json.load(f)
-    with open(MODELS_DIR / "evaluation_results.json", encoding="utf-8") as f:
+    with open(models_dir / "evaluation_results.json", encoding="utf-8") as f:
         results = json.load(f)
 
     repo_id = args.repo_id or hf_repo_id(metadata["district"])
 
     card = build_model_card(metadata, results)
-    card_path = MODELS_DIR / "README.md"
+    card_path = models_dir / "README.md"
     card_path.write_text(card, encoding="utf-8")
 
     print(f"Target repo:    {repo_id}")
@@ -212,7 +216,7 @@ def main() -> None:
 
     for filename in REQUIRED_FILES + ["README.md"]:
         api.upload_file(
-            path_or_fileobj=str(MODELS_DIR / filename),
+            path_or_fileobj=str(models_dir / filename),
             path_in_repo=filename,
             repo_id=repo_id,
             repo_type="model",

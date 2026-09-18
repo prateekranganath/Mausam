@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.config import DEFAULT_DISTRICT, MODELS_DIR, SPLIT_DATES
+from src.config import DEFAULT_DISTRICT, SPLIT_DATES
 from src.data.cleaner import clean_dataset
 from src.data.district import get_district_daily_series
 from src.data.loader import load_raw_dataset
@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument("--state", default=None)
     args = parser.parse_args()
 
-    predictor = RainfallRiskPredictor.load(MODELS_DIR)
+    predictor = RainfallRiskPredictor.load_local(args.district)
 
     raw = load_raw_dataset()
     clean = clean_dataset(raw)

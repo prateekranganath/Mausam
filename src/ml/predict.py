@@ -1,7 +1,7 @@
 """Clean, FastAPI-independent prediction interface.
 
-Usage (local artifacts, e.g. right after training):
-    predictor = RainfallRiskPredictor.load(MODELS_DIR)
+Usage (local artifacts, e.g. right after training, never pushed to HF):
+    predictor = RainfallRiskPredictor.load_local("Thiruvananthapuram")
 
 Usage (no local training needed — pulls the already-trained artifacts
 from Hugging Face Hub, cached locally by huggingface_hub after the first
@@ -74,14 +74,22 @@ class RainfallRiskPredictor:
 
     @classmethod
     def load(cls, models_dir: Path) -> "RainfallRiskPredictor":
-        """Load artifacts from a local models/ directory (produced by
-        scripts/train_model.py in this session)."""
+        """Load artifacts from an exact local directory."""
         classifier = joblib.load(models_dir / "rainfall_risk_classifier.joblib")
         regressor = joblib.load(models_dir / "rainfall_amount_regressor.joblib")
         preprocessor = joblib.load(models_dir / "preprocessor.joblib")
         with open(models_dir / "model_metadata.json", encoding="utf-8") as f:
             metadata = json.load(f)
         return cls(classifier, regressor, preprocessor, metadata)
+
+    @classmethod
+    def load_local(cls, district: str) -> "RainfallRiskPredictor":
+        """Load a district's locally trained artifacts (models/<district>/),
+        never pushed to Hugging Face — e.g. right after
+        scripts/train_model.py --district "..." with no push step."""
+        from src.config import local_model_dir
+
+        return cls.load(local_model_dir(district))
 
     @classmethod
     def from_pretrained(cls, district: str, repo_id: str | None = None) -> "RainfallRiskPredictor":

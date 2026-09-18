@@ -69,7 +69,7 @@
     "rmse": 42.7282878763972,
     "r2": 0.5047988255172153,
     "mean_actual": 45.127624999999995,
-    "mean_predicted": 41.25847382832474
+    "mean_predicted": 41.25847382832473
   },
   "chosen_classifier_model": "random_forest",
   "chosen_classifier_params": {
@@ -84,7 +84,7 @@
     "min_samples_leaf": 10,
     "n_estimators": 200
   },
-  "chosen_regressor_val_mae": 31.172546653854887,
+  "chosen_regressor_val_mae": 31.17254665385489,
   "train_positive_rate": 0.24520922956589752,
   "val_positive_rate": 0.20684931506849316,
   "test_positive_rate": 0.1,

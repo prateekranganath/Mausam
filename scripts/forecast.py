@@ -5,7 +5,7 @@ artifacts are pulled from Hugging Face Hub.
 
 Usage:
     python scripts/forecast.py --district "Thiruvananthapuram"
-    python scripts/forecast.py --district "Thiruvananthapuram" --local-model  # use models/ instead of the Hub
+    python scripts/forecast.py --district "Thiruvananthapuram" --local-model  # use models/<district>/ instead of the Hub
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.config import DEFAULT_DISTRICT, MODELS_DIR
+from src.config import DEFAULT_DISTRICT
 from src.ml.predict import RainfallRiskPredictor
 
 
@@ -25,11 +25,11 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser()
     parser.add_argument("--district", default=DEFAULT_DISTRICT)
-    parser.add_argument("--local-model", action="store_true", help="Load from models/ instead of Hugging Face Hub")
+    parser.add_argument("--local-model", action="store_true", help="Load from models/<district>/ instead of Hugging Face Hub")
     args = parser.parse_args()
 
     if args.local_model:
-        predictor = RainfallRiskPredictor.load(MODELS_DIR)
+        predictor = RainfallRiskPredictor.load_local(args.district)
     else:
         predictor = RainfallRiskPredictor.from_pretrained(args.district)
 
