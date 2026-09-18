@@ -1,0 +1,65 @@
+{
+  "model_version": "0.1.0",
+  "district": "Mumbai Suburban",
+  "state": "MH",
+  "latitude": 19.1167,
+  "longitude": 72.84164999999999,
+  "elevation": 6.0,
+  "source_file": "india_weather_rainfall_data.xlsx",
+  "forecast_horizon_days": 7,
+  "classifier_model_name": "xgboost",
+  "classifier_params": {
+    "learning_rate": 0.05,
+    "max_depth": 5,
+    "n_estimators": 400
+  },
+  "classifier_calibration": "sigmoid (Platt), fit on validation split, cv='prefit'",
+  "regressor_model_name": "xgboost",
+  "regressor_params": {
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "n_estimators": 200
+  },
+  "rainfall_risk_threshold_percentile": 33.0,
+  "rainfall_risk_threshold_mm_by_month": {
+    "1": 0.0,
+    "2": 0.0,
+    "3": 0.0,
+    "4": 0.0,
+    "5": 0.0,
+    "6": 57.846,
+    "7": 76.06399999999995,
+    "8": 35.68399999999996,
+    "9": 21.85199999999994,
+    "10": 0.0,
+    "11": 0.0,
+    "12": 0.0
+  },
+  "climatology_mean_rainfall_mm_by_month": {
+    "1": 0.004915514592933949,
+    "2": 0.000505050505050505,
+    "3": 0.06543778801843318,
+    "4": 0.0,
+    "5": 0.9047619047619048,
+    "6": 19.994126984126982,
+    "7": 32.739938556067585,
+    "8": 15.469278033794163,
+    "9": 18.083968253968255,
+    "10": 1.8712749615975421,
+    "11": 0.5293650793650794,
+    "12": 0.8844854070660523
+  },
+  "train_date_range": [
+    "2015-01-01",
+    "2021-12-31"
+  ],
+  "val_date_range": [
+    "2022-01-01",
+    "2023-12-31"
+  ],
+  "test_date_range": [
+    "2024-01-01",
+    "2025-02-10"
+  ],
+  "class_imbalance_handling": "RandomForest: class_weight='balanced'. XGBoost: scale_pos_weight =8.067 (train neg/pos ratio). No resampling/SMOTE was used \u2014 the positive class is only mildly imbalanced (~11% by construction of the monthly tercile threshold), and synthetic resampling of lag/rolling features derived from a time series risks producing physically implausible feature combinations."
+}

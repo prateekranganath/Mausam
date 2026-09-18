@@ -28,7 +28,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.config import DEFAULT_DISTRICT, HF_TOKEN, hf_repo_id, local_model_dir
+from src.config import (
+    ALL_INDIA_MODEL_DIR,
+    DEFAULT_DISTRICT,
+    HF_TOKEN,
+    hf_repo_id,
+    hf_repo_id_all_india,
+    local_model_dir,
+)
 
 REQUIRED_FILES = [
     "rainfall_risk_classifier.joblib",
@@ -167,30 +174,161 @@ leakage from the T+1..T+7 forecast window) — see the source repository's
 """
 
 
+def build_model_card_all_india(metadata: dict, results: dict) -> str:
+    clf = results["classifier"]
+    base = results["baseline"]
+    reg = results["regressor"]
+    base_reg = results["baseline_regression"]
+    per_district_rows = "\n".join(
+        f"| {d} | {r['n_test_rows']} | {r['classifier']['roc_auc']:.3f} | {r['regressor']['mae']:.2f} |"
+        for d, r in results.get("per_district_sample", {}).items()
+    )
+    return f"""---
+license: mit
+tags:
+  - tabular-classification
+  - rainfall-forecasting
+  - india
+  - random-forest
+  - xgboost
+  - multi-district
+---
+
+# Rainfall_Forecast_Mausam — All-India Rainfall Risk Model
+
+Hackathon MVP. A SINGLE pooled model, trained across **{metadata['n_districts_trained']} Indian districts**
+simultaneously, predicting the probability of **insufficient rainfall over
+the next {metadata['forecast_horizon_days']} days** for any of them, plus
+an expected total-rainfall estimate (mm). Replaces the earlier one-model-
+per-district approach — pull this once, use it for any trained district.
+
+**This is not an operational meteorological forecast.** It does not claim
+panchayat-level accuracy and has not been validated by any meteorological
+authority.
+
+## Why a shorter (2021-2025) date range than the raw data
+
+{metadata['date_range_rationale']}
+
+## Why no zero-imputation for missing rainfall (unlike the single-district models)
+
+{metadata['missing_rainfall_handling']}
+
+## Target definition
+
+- `rainfall_next_7_days`: sum of observed rainfall (mm) over T+1..T+7.
+- `insufficient_rainfall_next_7_days`: 1 if that sum falls below the
+  **{metadata['rainfall_risk_threshold_percentile']}th percentile of that
+  (district, calendar month)'s rainfall distribution**, computed from the
+  training split only (IMD-style lower-tercile convention) — a district-
+  and-season-specific threshold, never a single national cutoff.
+
+## Data splits (chronological, no shuffling)
+
+- Train: {metadata['train_date_range'][0]} to {metadata['train_date_range'][1]}
+- Validation: {metadata['val_date_range'][0]} to {metadata['val_date_range'][1]}
+- Test: {metadata['test_date_range'][0]} to {metadata['test_date_range'][1]}
+
+## Model
+
+- Classifier: **{metadata['classifier_model_name']}** ({metadata['classifier_params']}), calibrated ({metadata['classifier_calibration']})
+- Regressor: **{metadata['regressor_model_name']}** ({metadata['regressor_params']})
+- Class imbalance handling: {metadata['class_imbalance_handling']}
+
+## Test-set performance vs. climatology baseline (pooled, all districts)
+
+Baseline predicts only the historical (district, month-of-year) base rate
+— no information about recent/current weather. This is the bar the model
+must clear.
+
+| Metric | Climatology baseline | {metadata['classifier_model_name']} |
+|---|---|---|
+| Accuracy | {base['accuracy']:.3f} | {clf['accuracy']:.3f} |
+| Precision | {base['precision']:.3f} | {clf['precision']:.3f} |
+| Recall | {base['recall']:.3f} | {clf['recall']:.3f} |
+| F1 | {base['f1']:.3f} | {clf['f1']:.3f} |
+| ROC-AUC | {base['roc_auc']:.3f} | {clf['roc_auc']:.3f} |
+| PR-AUC | {base['pr_auc']:.3f} | {clf['pr_auc']:.3f} |
+| Brier score | {base['brier_score']:.3f} | {clf['brier_score']:.3f} |
+
+Regression (`rainfall_next_7_days`, mm):
+
+| Metric | Climatology baseline | {metadata['regressor_model_name']} |
+|---|---|---|
+| MAE | {base_reg['mae']:.2f} | {reg['mae']:.2f} |
+| RMSE | {base_reg['rmse']:.2f} | {reg['rmse']:.2f} |
+
+### Per-district sample (sanity check — the model isn't only good for high-row-count districts)
+
+| District | Test rows | ROC-AUC | Regression MAE |
+|---|---|---|---|
+{per_district_rows}
+
+Full metrics, including every sampled district: see `evaluation_results.json`.
+
+## Inputs / feature schema
+
+See `feature_schema.json`. All features use only information available up
+to the prediction day; the 7-day forward window is only ever used to
+build the target. Geographic features (latitude/longitude/elevation) have
+real variance across training rows here (unlike a single-district model),
+so this model can actually use location, not just season, to predict.
+
+## Files in this repo
+
+- `rainfall_risk_classifier.joblib`, `rainfall_amount_regressor.joblib`
+- `preprocessor.joblib` — (district, month)-keyed climatology and risk-
+  threshold tables, plus median-imputation values, all fit on the
+  training split only
+- `climatology_baseline.joblib` — the baseline model shown above
+- `feature_schema.json`, `model_metadata.json`, `evaluation_results.json`
+
+## Limitations
+
+- Trained only on districts present in the source dataset; a district not
+  in `model_metadata.json`'s `districts` list has no learned climatology/
+  threshold and should not be queried.
+- Two district names collide across states in the source data (Raipur:
+  Chhattisgarh/Madhya Pradesh; Cuddalore: Tamil Nadu/Puducherry) — these
+  are disambiguated as "Raipur (CT)"/"Raipur (MP)" etc.
+- Effective training window is short (~2.5 years) because of the data-
+  completeness cutover explained above — less historical depth than the
+  single-district models, compensated for by far more districts (breadth)
+  per split.
+- Not validated against independent ground-truth rainfall records.
+"""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--district", default=DEFAULT_DISTRICT)
+    parser.add_argument("--all-india", action="store_true", help="Push the pooled Rainfall_Forecast_Mausam model instead of a single district")
     parser.add_argument("--repo-id", default=None)
     parser.add_argument("--dry-run", action="store_true", help="Build everything but do not call the HF API")
     args = parser.parse_args()
 
-    models_dir = local_model_dir(args.district)
+    if args.all_india:
+        models_dir = ALL_INDIA_MODEL_DIR
+        default_repo_id = hf_repo_id_all_india()
+        card_builder = build_model_card_all_india
+    else:
+        models_dir = local_model_dir(args.district)
+        default_repo_id = None  # resolved below, needs metadata['district']
+        card_builder = build_model_card
 
     missing = [f for f in REQUIRED_FILES if not (models_dir / f).exists()]
     if missing:
-        raise FileNotFoundError(
-            f"Missing artifacts {missing} in {models_dir} — run "
-            f"scripts/train_model.py --district \"{args.district}\" first."
-        )
+        train_cmd = "scripts/train_all_india_model.py" if args.all_india else f'scripts/train_model.py --district "{args.district}"'
+        raise FileNotFoundError(f"Missing artifacts {missing} in {models_dir} — run {train_cmd} first.")
 
     with open(models_dir / "model_metadata.json", encoding="utf-8") as f:
         metadata = json.load(f)
     with open(models_dir / "evaluation_results.json", encoding="utf-8") as f:
         results = json.load(f)
 
-    repo_id = args.repo_id or hf_repo_id(metadata["district"])
+    repo_id = args.repo_id or default_repo_id or hf_repo_id(metadata["district"])
 
-    card = build_model_card(metadata, results)
+    card = card_builder(metadata, results)
     card_path = models_dir / "README.md"
     card_path.write_text(card, encoding="utf-8")
 

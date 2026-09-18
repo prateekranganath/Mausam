@@ -92,30 +92,48 @@ class RainfallRiskPredictor:
         return cls.load(local_model_dir(district))
 
     @classmethod
-    def from_pretrained(cls, district: str, repo_id: str | None = None) -> "RainfallRiskPredictor":
-        """Load artifacts straight from Hugging Face Hub — no local
-        training needed. huggingface_hub caches downloads under
-        ~/.cache/huggingface, so repeat calls (even across processes)
-        don't re-download once the first pull has happened.
-        """
+    def load_local_all_india(cls) -> "RainfallRiskPredictor":
+        """Load the pooled all-India model's local artifacts
+        (models/all-india/), before/without pushing to Hugging Face."""
+        from src.config import ALL_INDIA_MODEL_DIR
+
+        return cls.load(ALL_INDIA_MODEL_DIR)
+
+    @classmethod
+    def _from_hub(cls, repo_id: str) -> "RainfallRiskPredictor":
         from huggingface_hub import hf_hub_download
 
-        repo_id = repo_id or hf_repo_id(district)
-        logger.info("Pulling model artifacts for %s from %s", district, repo_id)
-
+        logger.info("Pulling model artifacts from %s", repo_id)
         # The push script creates repos as private, so a token is required
         # to pull — same HF_TOKEN used to push.
         paths = {
             name: hf_hub_download(repo_id=repo_id, filename=name, token=HF_TOKEN)
             for name in HUB_ARTIFACT_FILES
         }
-
         classifier = joblib.load(paths["rainfall_risk_classifier.joblib"])
         regressor = joblib.load(paths["rainfall_amount_regressor.joblib"])
         preprocessor = joblib.load(paths["preprocessor.joblib"])
         with open(paths["model_metadata.json"], encoding="utf-8") as f:
             metadata = json.load(f)
         return cls(classifier, regressor, preprocessor, metadata)
+
+    @classmethod
+    def from_pretrained(cls, district: str, repo_id: str | None = None) -> "RainfallRiskPredictor":
+        """Load a single-district model straight from Hugging Face Hub —
+        no local training needed. huggingface_hub caches downloads under
+        ~/.cache/huggingface, so repeat calls (even across processes)
+        don't re-download once the first pull has happened.
+        """
+        return cls._from_hub(repo_id or hf_repo_id(district))
+
+    @classmethod
+    def from_pretrained_all_india(cls) -> "RainfallRiskPredictor":
+        """Load the pooled all-India model ("Rainfall_Forecast_Mausam")
+        straight from Hugging Face Hub — works for any district it was
+        trained on, no per-district training or repo needed."""
+        from src.config import hf_repo_id_all_india
+
+        return cls._from_hub(hf_repo_id_all_india())
 
     def predict(self, district_daily_df: pd.DataFrame, as_of_date: str | None = None) -> RainfallRiskResult:
         """`district_daily_df` must be one district's continuous daily

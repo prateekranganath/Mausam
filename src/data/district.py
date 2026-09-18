@@ -152,3 +152,63 @@ def get_district_daily_series(
         "n_stations_reporting",
     ]
     return daily[cols]
+
+
+def get_all_districts_daily_series(df: pd.DataFrame) -> pd.DataFrame:
+    """Vectorized equivalent of get_district_daily_series for EVERY
+    district at once — used to build a pooled multi-district training
+    table. Same aggregation rules (mean across stations reporting that
+    day, missing excluded from the average not treated as 0; every
+    calendar day present even if entirely unreported).
+
+    `district` name alone is NOT globally unique in this dataset (Raipur:
+    CT and MP; Cuddalore: TN and PY) — those get disambiguated to
+    "Raipur (CT)" / "Raipur (MP)" etc. so every downstream groupby("district")
+    is safe. All other districts keep their plain name.
+    """
+    name_state_pairs = df[["district", "state"]].drop_duplicates()
+    dup_names = name_state_pairs["district"][name_state_pairs["district"].duplicated(keep=False)]
+    ambiguous = set(dup_names.unique())
+    if ambiguous:
+        logger.info("Disambiguating district names that collide across states: %s", sorted(ambiguous))
+
+    df = df.copy()
+    df["district"] = df["district"].where(
+        ~df["district"].isin(ambiguous), df["district"] + " (" + df["state"] + ")"
+    )
+
+    daily = df.groupby(["district", "state", "date_of_record"]).agg(
+        {**{c: "mean" for c in AGG_COLUMNS}, **{c: "mean" for c in STATIC_COLUMNS}}
+    )
+    n_reporting = df.groupby(["district", "state", "date_of_record"])["rainfall"].apply(
+        lambda s: s.notna().sum()
+    )
+    daily["n_stations_reporting"] = n_reporting
+    daily = daily.reset_index()
+
+    # reindex each district onto its OWN continuous daily calendar (never
+    # borrow another district's date range) — same gap-filling behavior as
+    # the single-district function, just applied per group.
+    def _reindex_one(group: pd.DataFrame) -> pd.DataFrame:
+        group = group.set_index("date_of_record")
+        full_index = pd.date_range(group.index.min(), group.index.max(), freq="D", name="date_of_record")
+        district, state = group["district"].iloc[0], group["state"].iloc[0]
+        group = group.drop(columns=["district", "state"]).reindex(full_index)
+        group["district"] = district
+        group["state"] = state
+        group["n_stations_reporting"] = group["n_stations_reporting"].fillna(0).astype(int)
+        return group.reset_index()
+
+    parts = [_reindex_one(g) for _, g in daily.groupby(["district", "state"], sort=False)]
+    result = pd.concat(parts, ignore_index=True)
+
+    cols = [
+        "date_of_record", "district", "state", "rainfall", "avg_temp",
+        "min_temp", "max_temp", "wind_speed", "air_pressure",
+        "latitude", "longitude", "elevation", "n_stations_reporting",
+    ]
+    logger.info(
+        "All-districts daily series: %d districts, %d total rows",
+        result["district"].nunique(), len(result),
+    )
+    return result[cols]

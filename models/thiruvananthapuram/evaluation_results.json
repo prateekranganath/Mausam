@@ -36,7 +36,7 @@
     "f1": 0.09302325581395349,
     "roc_auc": 0.712013888888889,
     "pr_auc": 0.1911123261741775,
-    "brier_score": 0.0949942742641251,
+    "brier_score": 0.09499427426412511,
     "confusion_matrix": {
       "labels": [
         "sufficient(0)",
@@ -84,7 +84,7 @@
     "min_samples_leaf": 10,
     "n_estimators": 200
   },
-  "chosen_regressor_val_mae": 31.17254665385489,
+  "chosen_regressor_val_mae": 31.172546653854887,
   "train_positive_rate": 0.24520922956589752,
   "val_positive_rate": 0.20684931506849316,
   "test_positive_rate": 0.1,

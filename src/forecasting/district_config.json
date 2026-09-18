@@ -4,5 +4,1895 @@
     "latitude": 8.475,
     "longitude": 76.95,
     "elevation": 32.0
+  },
+  "Agra": {
+    "state": "UP",
+    "latitude": 27.15835,
+    "longitude": 78.0,
+    "elevation": 168.0
+  },
+  "Ahmedabad": {
+    "state": "GJ",
+    "latitude": 23.0667,
+    "longitude": 72.6333,
+    "elevation": 55.0
+  },
+  "Ahmednagar": {
+    "state": "MH",
+    "latitude": 19.0833,
+    "longitude": 74.8,
+    "elevation": 655.0
+  },
+  "Aizawl": {
+    "state": "MZ",
+    "latitude": 23.793575234899325,
+    "longitude": 92.66221073825503,
+    "elevation": 239.303355704698
+  },
+  "Ajmer": {
+    "state": "RJ",
+    "latitude": 26.45,
+    "longitude": 74.6167,
+    "elevation": 485.0
+  },
+  "Akola": {
+    "state": "MH",
+    "latitude": 20.7,
+    "longitude": 77.05,
+    "elevation": 292.5
+  },
+  "Alappuzha": {
+    "state": "KL",
+    "latitude": 9.55,
+    "longitude": 76.4167,
+    "elevation": 2.0
+  },
+  "Aligarh": {
+    "state": "UP",
+    "latitude": 27.8833,
+    "longitude": 78.0667,
+    "elevation": 186.0
+  },
+  "Alwar": {
+    "state": "RJ",
+    "latitude": 27.5,
+    "longitude": 76.5833,
+    "elevation": 270.0
+  },
+  "Ambala": {
+    "state": "HR",
+    "latitude": 30.386671244577002,
+    "longitude": 76.7667,
+    "elevation": 409.68533080260306
+  },
+  "Amravati": {
+    "state": "MH",
+    "latitude": 20.9333,
+    "longitude": 77.7833,
+    "elevation": 367.0
+  },
+  "Amreli": {
+    "state": "GJ",
+    "latitude": 21.6,
+    "longitude": 71.2167,
+    "elevation": 0.0
+  },
+  "Amritsar": {
+    "state": "PB",
+    "latitude": 31.6333,
+    "longitude": 74.8667,
+    "elevation": 229.0
+  },
+  "Anand": {
+    "state": "GJ",
+    "latitude": 22.566699999999997,
+    "longitude": 72.9333,
+    "elevation": 41.0
+  },
+  "Anantnag": {
+    "state": "JK",
+    "latitude": 33.5833,
+    "longitude": 75.0833,
+    "elevation": 0.0
+  },
+  "Angul": {
+    "state": "OR",
+    "latitude": 20.8333,
+    "longitude": 85.1,
+    "elevation": 137.0
+  },
+  "Araria": {
+    "state": "BR",
+    "latitude": 26.300000000000004,
+    "longitude": 87.2667,
+    "elevation": 59.0
+  },
+  "Aurangabad": {
+    "state": "MH",
+    "latitude": 19.86665,
+    "longitude": 75.36664999999999,
+    "elevation": 580.5
+  },
+  "Bagalkote": {
+    "state": "KA",
+    "latitude": 16.7,
+    "longitude": 75.75,
+    "elevation": 524.0
+  },
+  "Bahraich": {
+    "state": "UP",
+    "latitude": 27.5667,
+    "longitude": 81.6,
+    "elevation": 122.0
+  },
+  "Balaghat": {
+    "state": "MP",
+    "latitude": 22.0,
+    "longitude": 80.7,
+    "elevation": 580.0
+  },
+  "Balasore": {
+    "state": "OR",
+    "latitude": 21.5167,
+    "longitude": 86.9333,
+    "elevation": 18.0
+  },
+  "Ballari": {
+    "state": "KA",
+    "latitude": 15.1629,
+    "longitude": 76.74164999999999,
+    "elevation": 468.5
+  },
+  "Banaskantha": {
+    "state": "GJ",
+    "latitude": 24.2,
+    "longitude": 72.2,
+    "elevation": 135.0
+  },
+  "Banda": {
+    "state": "UP",
+    "latitude": 25.4667,
+    "longitude": 80.3667,
+    "elevation": 120.0
+  },
+  "Bankura": {
+    "state": "WB",
+    "latitude": 23.25,
+    "longitude": 87.05,
+    "elevation": 0.0
+  },
+  "Bapatla": {
+    "state": "AP",
+    "latitude": 15.900000000000002,
+    "longitude": 80.4667,
+    "elevation": 0.0
+  },
+  "Baramulla": {
+    "state": "JK",
+    "latitude": 34.05,
+    "longitude": 74.4,
+    "elevation": 2652.0
+  },
+  "Bareilly": {
+    "state": "UP",
+    "latitude": 28.3667,
+    "longitude": 79.4,
+    "elevation": 167.0
+  },
+  "Barmer": {
+    "state": "RJ",
+    "latitude": 25.75,
+    "longitude": 71.3833,
+    "elevation": 193.0
+  },
+  "Bastar": {
+    "state": "MP",
+    "latitude": 19.0833,
+    "longitude": 82.0333,
+    "elevation": 552.0
+  },
+  "Bathinda": {
+    "state": "PB",
+    "latitude": 30.1667,
+    "longitude": 74.5833,
+    "elevation": 207.0
+  },
+  "Belagavi": {
+    "state": "KA",
+    "latitude": 15.85,
+    "longitude": 74.57499999999997,
+    "elevation": 754.5
+  },
+  "Bengaluru Rural": {
+    "state": "KA",
+    "latitude": 13.1979,
+    "longitude": 77.7063,
+    "elevation": 897.0
+  },
+  "Bengaluru Urban": {
+    "state": "KA",
+    "latitude": 12.95835,
+    "longitude": 77.6083,
+    "elevation": 904.0
+  },
+  "Betul": {
+    "state": "MP",
+    "latitude": 21.8667,
+    "longitude": 77.9333,
+    "elevation": 652.0
+  },
+  "Bhadradri Kothagudem": {
+    "state": "AP",
+    "latitude": 17.55,
+    "longitude": 80.6333,
+    "elevation": 110.0
+  },
+  "Bhadrak": {
+    "state": "OR",
+    "latitude": 20.7833,
+    "longitude": 86.7333,
+    "elevation": 5.0
+  },
+  "Bhagalpur": {
+    "state": "BR",
+    "latitude": 25.2333,
+    "longitude": 87.00835000000002,
+    "elevation": 40.0
+  },
+  "Bhavnagar": {
+    "state": "GJ",
+    "latitude": 21.597274415384614,
+    "longitude": 72.10454364615384,
+    "elevation": 5.687230769230769
+  },
+  "Bhilwara": {
+    "state": "RJ",
+    "latitude": 25.35,
+    "longitude": 74.6333,
+    "elevation": 421.0
+  },
+  "Bhopal": {
+    "state": "MP",
+    "latitude": 23.2833,
+    "longitude": 77.35,
+    "elevation": 523.0
+  },
+  "Bidar": {
+    "state": "KA",
+    "latitude": 17.9167,
+    "longitude": 77.5333,
+    "elevation": 663.0
+  },
+  "Bijapur": {
+    "state": "KA",
+    "latitude": 16.8167,
+    "longitude": 75.7167,
+    "elevation": 593.0
+  },
+  "Bijnor": {
+    "state": "UP",
+    "latitude": 29.6167,
+    "longitude": 78.3833,
+    "elevation": 269.0
+  },
+  "Bikaner": {
+    "state": "RJ",
+    "latitude": 28.0,
+    "longitude": 73.3,
+    "elevation": 223.0
+  },
+  "Bilaspur": {
+    "state": "HP",
+    "latitude": 31.25,
+    "longitude": 76.6667,
+    "elevation": 589.0
+  },
+  "Birbhum": {
+    "state": "WB",
+    "latitude": 23.65,
+    "longitude": 87.7,
+    "elevation": 58.0
+  },
+  "Buldhana": {
+    "state": "MH",
+    "latitude": 20.5333,
+    "longitude": 76.2333,
+    "elevation": 648.0
+  },
+  "Bundi": {
+    "state": "RJ",
+    "latitude": 25.449999999999996,
+    "longitude": 75.6333,
+    "elevation": 266.0
+  },
+  "Cachar": {
+    "state": "AS",
+    "latitude": 24.75,
+    "longitude": 92.8,
+    "elevation": 21.0
+  },
+  "Chamarajanagar": {
+    "state": "KA",
+    "latitude": 11.9333,
+    "longitude": 76.9333,
+    "elevation": 760.0
+  },
+  "Chandigarh": {
+    "state": "CH",
+    "latitude": 30.7333,
+    "longitude": 76.8833,
+    "elevation": 347.0
+  },
+  "Chandrapur": {
+    "state": "MH",
+    "latitude": 20.16233977178423,
+    "longitude": 79.46990663900414,
+    "elevation": 202.12116182572615
+  },
+  "Chennai": {
+    "state": "TN",
+    "latitude": 13.03335,
+    "longitude": 80.21665,
+    "elevation": 8.0
+  },
+  "Chhatarpur": {
+    "state": "MP",
+    "latitude": 25.025,
+    "longitude": 79.68335,
+    "elevation": 221.5
+  },
+  "Chhindwara": {
+    "state": "MP",
+    "latitude": 22.1,
+    "longitude": 79.0,
+    "elevation": 675.0
+  },
+  "Chikkaballapura": {
+    "state": "KA",
+    "latitude": 13.276999227150537,
+    "longitude": 78.04195201612903,
+    "elevation": 826.4774865591398
+  },
+  "Chikkamagaluru": {
+    "state": "KA",
+    "latitude": 13.25,
+    "longitude": 75.75,
+    "elevation": 0.0
+  },
+  "Chitradurga": {
+    "state": "KA",
+    "latitude": 14.2333,
+    "longitude": 76.43330000000002,
+    "elevation": 724.0
+  },
+  "Chittorgarh": {
+    "state": "RJ",
+    "latitude": 24.8833,
+    "longitude": 74.6333,
+    "elevation": 404.0
+  },
+  "Churu": {
+    "state": "RJ",
+    "latitude": 28.25,
+    "longitude": 74.9167,
+    "elevation": 290.0
+  },
+  "Coimbatore": {
+    "state": "TN",
+    "latitude": 10.918075040650407,
+    "longitude": 77.00722761517616,
+    "elevation": 487.459891598916
+  },
+  "Cooch Behar": {
+    "state": "WB",
+    "latitude": 26.3333,
+    "longitude": 89.4667,
+    "elevation": 41.0
+  },
+  "Cuddalore (PY)": {
+    "state": "PY",
+    "latitude": 11.7667,
+    "longitude": 79.7667,
+    "elevation": 5.0
+  },
+  "Cuddalore (TN)": {
+    "state": "TN",
+    "latitude": 11.5,
+    "longitude": 79.7667,
+    "elevation": 3.0
+  },
+  "Cuttack": {
+    "state": "OR",
+    "latitude": 20.4667,
+    "longitude": 85.9333,
+    "elevation": 27.0
+  },
+  "Dakshin Dinajpur": {
+    "state": "WB",
+    "latitude": 25.216700000000003,
+    "longitude": 88.7833,
+    "elevation": 0.0
+  },
+  "Dakshina Kannada": {
+    "state": "KA",
+    "latitude": 12.93335,
+    "longitude": 74.8583,
+    "elevation": 67.0
+  },
+  "Daman": {
+    "state": "DD",
+    "latitude": 20.42555,
+    "longitude": 72.8466,
+    "elevation": 5.0
+  },
+  "Damoh": {
+    "state": "MP",
+    "latitude": 23.8333,
+    "longitude": 79.45,
+    "elevation": 369.0
+  },
+  "Darbhanga": {
+    "state": "BR",
+    "latitude": 26.1667,
+    "longitude": 85.9,
+    "elevation": 47.0
+  },
+  "Darjeeling": {
+    "state": "WB",
+    "latitude": 27.05,
+    "longitude": 88.2667,
+    "elevation": 2127.0
+  },
+  "Datia": {
+    "state": "MP",
+    "latitude": 25.6667,
+    "longitude": 78.4667,
+    "elevation": 227.0
+  },
+  "Davangere": {
+    "state": "KA",
+    "latitude": 14.5,
+    "longitude": 75.9167,
+    "elevation": 620.0
+  },
+  "Dehradun": {
+    "state": "UP",
+    "latitude": 30.2532,
+    "longitude": 78.10679999999998,
+    "elevation": 620.5
+  },
+  "Devbhumi Dwarka": {
+    "state": "GJ",
+    "latitude": 22.425000000000004,
+    "longitude": 69.1,
+    "elevation": 7.5
+  },
+  "Dhar": {
+    "state": "MP",
+    "latitude": 22.6,
+    "longitude": 75.3,
+    "elevation": 581.0
+  },
+  "Dharmapuri": {
+    "state": "TN",
+    "latitude": 12.1333,
+    "longitude": 78.0333,
+    "elevation": 396.0
+  },
+  "Dharwad": {
+    "state": "KA",
+    "latitude": 15.4833,
+    "longitude": 74.9833,
+    "elevation": 678.0
+  },
+  "Dhubri": {
+    "state": "AS",
+    "latitude": 26.08335,
+    "longitude": 89.95000000000002,
+    "elevation": 17.5
+  },
+  "Dibrugarh": {
+    "state": "AS",
+    "latitude": 27.483299999999996,
+    "longitude": 95.0167,
+    "elevation": 110.0
+  },
+  "Dima Hasao": {
+    "state": "AS",
+    "latitude": 25.1667,
+    "longitude": 93.0167,
+    "elevation": 680.0
+  },
+  "Dindigul": {
+    "state": "TN",
+    "latitude": 10.2333,
+    "longitude": 77.4667,
+    "elevation": 2339.0
+  },
+  "Diu": {
+    "state": "GJ",
+    "latitude": 20.7167,
+    "longitude": 70.9167,
+    "elevation": 10.0
+  },
+  "Durg": {
+    "state": "MP",
+    "latitude": 21.1833,
+    "longitude": 81.2833,
+    "elevation": 292.0
+  },
+  "East Champaran": {
+    "state": "BR",
+    "latitude": 26.9833,
+    "longitude": 84.85,
+    "elevation": 83.0
+  },
+  "East Godavari": {
+    "state": "AP",
+    "latitude": 17.1104,
+    "longitude": 81.8182,
+    "elevation": 46.0
+  },
+  "East Khasi Hills": {
+    "state": "ML",
+    "latitude": 25.495874191132415,
+    "longitude": 91.84975446375076,
+    "elevation": 1534.0398442180947
+  },
+  "East Siang": {
+    "state": "AR",
+    "latitude": 28.1,
+    "longitude": 95.3833,
+    "elevation": 155.0
+  },
+  "East Singhbhum": {
+    "state": "BR",
+    "latitude": 22.8167,
+    "longitude": 86.1833,
+    "elevation": 134.0
+  },
+  "Ernakulam": {
+    "state": "KL",
+    "latitude": 10.054675,
+    "longitude": 76.325475,
+    "elevation": 5.0
+  },
+  "Gadag": {
+    "state": "KA",
+    "latitude": 15.4167,
+    "longitude": 75.6333,
+    "elevation": 661.0
+  },
+  "Gandhinagar": {
+    "state": "GJ",
+    "latitude": 23.2333,
+    "longitude": 72.71669999999999,
+    "elevation": 0.0
+  },
+  "Ganganagar": {
+    "state": "RJ",
+    "latitude": 29.9167,
+    "longitude": 73.91669999999999,
+    "elevation": 176.0
+  },
+  "Gangtok": {
+    "state": "SK",
+    "latitude": 27.3333,
+    "longitude": 88.6167,
+    "elevation": 1756.0
+  },
+  "Ganjam": {
+    "state": "OR",
+    "latitude": 19.2667,
+    "longitude": 84.8833,
+    "elevation": 16.0
+  },
+  "Gaurela-Pendra-Marwahi": {
+    "state": "MP",
+    "latitude": 22.7667,
+    "longitude": 81.9,
+    "elevation": 624.0
+  },
+  "Gaya": {
+    "state": "BR",
+    "latitude": 24.75,
+    "longitude": 84.95,
+    "elevation": 110.0
+  },
+  "Ghazipur": {
+    "state": "UP",
+    "latitude": 25.4,
+    "longitude": 83.55,
+    "elevation": 0.0
+  },
+  "Gir Somnath": {
+    "state": "GJ",
+    "latitude": 20.95943952950775,
+    "longitude": 70.3595678270329,
+    "elevation": 12.27631221104161
+  },
+  "Goalpara": {
+    "state": "AS",
+    "latitude": 26.183300000000003,
+    "longitude": 90.6333,
+    "elevation": 36.0
+  },
+  "Golaghat": {
+    "state": "AS",
+    "latitude": 26.5167,
+    "longitude": 93.9833,
+    "elevation": 0.0
+  },
+  "Gondia": {
+    "state": "MH",
+    "latitude": 21.4667,
+    "longitude": 80.2,
+    "elevation": 311.0
+  },
+  "Gorakhpur": {
+    "state": "UP",
+    "latitude": 26.75,
+    "longitude": 83.3667,
+    "elevation": 76.0
+  },
+  "Guna": {
+    "state": "MP",
+    "latitude": 24.65,
+    "longitude": 77.3167,
+    "elevation": 477.0
+  },
+  "Guntur": {
+    "state": "AP",
+    "latitude": 16.55,
+    "longitude": 79.55,
+    "elevation": 104.0
+  },
+  "Gwalior": {
+    "state": "MP",
+    "latitude": 26.2333,
+    "longitude": 78.25,
+    "elevation": 205.0
+  },
+  "Hamirpur": {
+    "state": "UP",
+    "latitude": 25.949999999999996,
+    "longitude": 80.15,
+    "elevation": 109.0
+  },
+  "Hanumakonda": {
+    "state": "AP",
+    "latitude": 18.0167,
+    "longitude": 79.5667,
+    "elevation": 266.0
+  },
+  "Hardoi": {
+    "state": "UP",
+    "latitude": 27.3833,
+    "longitude": 80.1667,
+    "elevation": 141.0
+  },
+  "Hassan": {
+    "state": "KA",
+    "latitude": 13.0,
+    "longitude": 76.15,
+    "elevation": 955.0
+  },
+  "Haveri": {
+    "state": "KA",
+    "latitude": 14.783299999999999,
+    "longitude": 75.4,
+    "elevation": 573.0
+  },
+  "Hisar": {
+    "state": "HR",
+    "latitude": 29.1667,
+    "longitude": 75.7333,
+    "elevation": 216.0
+  },
+  "Hojai": {
+    "state": "AS",
+    "latitude": 25.75,
+    "longitude": 93.1833,
+    "elevation": 147.0
+  },
+  "Hooghly": {
+    "state": "WB",
+    "latitude": 22.9833,
+    "longitude": 88.3667,
+    "elevation": 0.0
+  },
+  "Howrah": {
+    "state": "WB",
+    "latitude": 22.5,
+    "longitude": 87.95,
+    "elevation": 0.0
+  },
+  "Hyderabad": {
+    "state": "AP",
+    "latitude": 17.3453,
+    "longitude": 78.4478,
+    "elevation": 573.5
+  },
+  "Imphal West": {
+    "state": "MN",
+    "latitude": 24.766700000000004,
+    "longitude": 93.9,
+    "elevation": 780.0
+  },
+  "Indore": {
+    "state": "MP",
+    "latitude": 22.7167,
+    "longitude": 75.8,
+    "elevation": 561.0
+  },
+  "Jabalpur": {
+    "state": "MP",
+    "latitude": 23.2,
+    "longitude": 79.95,
+    "elevation": 391.0
+  },
+  "Jagatsinghpur": {
+    "state": "OR",
+    "latitude": 20.3,
+    "longitude": 86.6833,
+    "elevation": 4.0
+  },
+  "Jaipur": {
+    "state": "RJ",
+    "latitude": 26.8167,
+    "longitude": 75.8,
+    "elevation": 385.0
+  },
+  "Jaisalmer": {
+    "state": "RJ",
+    "latitude": 26.9,
+    "longitude": 70.9167,
+    "elevation": 231.0
+  },
+  "Jalaun": {
+    "state": "UP",
+    "latitude": 25.9833,
+    "longitude": 79.5,
+    "elevation": 140.0
+  },
+  "Jalgaon": {
+    "state": "MH",
+    "latitude": 21.05,
+    "longitude": 75.5667,
+    "elevation": 200.0
+  },
+  "Jalna": {
+    "state": "MH",
+    "latitude": 19.8333,
+    "longitude": 75.8,
+    "elevation": 534.0
+  },
+  "Jalpaiguri": {
+    "state": "WB",
+    "latitude": 26.605270069504776,
+    "longitude": 88.48543370981756,
+    "elevation": 76.78040834057342
+  },
+  "Jammu": {
+    "state": "JK",
+    "latitude": 32.67685284552846,
+    "longitude": 74.83515833333334,
+    "elevation": 342.4308943089431
+  },
+  "Jamnagar": {
+    "state": "GJ",
+    "latitude": 22.45,
+    "longitude": 70.0833,
+    "elevation": 14.0
+  },
+  "Jhansi": {
+    "state": "UP",
+    "latitude": 25.45,
+    "longitude": 78.5833,
+    "elevation": 250.0
+  },
+  "Jharsuguda": {
+    "state": "OR",
+    "latitude": 21.916699999999995,
+    "longitude": 84.0833,
+    "elevation": 228.0
+  },
+  "Jhunjhunu": {
+    "state": "RJ",
+    "latitude": 28.3333,
+    "longitude": 75.5833,
+    "elevation": 300.0
+  },
+  "Jiribam": {
+    "state": "NL",
+    "latitude": 25.879999999999995,
+    "longitude": 93.76999999999998,
+    "elevation": 152.0
+  },
+  "Jodhpur": {
+    "state": "RJ",
+    "latitude": 26.469502087312414,
+    "longitude": 72.88448308321964,
+    "elevation": 220.25457025920872
+  },
+  "Jorhat": {
+    "state": "AS",
+    "latitude": 26.0667,
+    "longitude": 90.1667,
+    "elevation": 880.0
+  },
+  "Kachchh": {
+    "state": "GJ",
+    "latitude": 23.21471086132178,
+    "longitude": 69.479789781961,
+    "elevation": 45.76902762730227
+  },
+  "Kakinada": {
+    "state": "AP",
+    "latitude": 17.03066088840737,
+    "longitude": 82.29716325839654,
+    "elevation": 8.6545232936078
+  },
+  "Kalaburagi": {
+    "state": "KA",
+    "latitude": 17.35,
+    "longitude": 76.85,
+    "elevation": 457.0
+  },
+  "Kalahandi": {
+    "state": "OR",
+    "latitude": 19.9167,
+    "longitude": 83.1833,
+    "elevation": 261.0
+  },
+  "Kalimpong": {
+    "state": "WB",
+    "latitude": 27.066700000000004,
+    "longitude": 88.4667,
+    "elevation": 0.0
+  },
+  "Kamrup": {
+    "state": "AS",
+    "latitude": 26.433300000000003,
+    "longitude": 91.6167,
+    "elevation": 57.0
+  },
+  "Kamrup Metropolitan": {
+    "state": "AS",
+    "latitude": 26.1,
+    "longitude": 91.5833,
+    "elevation": 47.0
+  },
+  "Kangra": {
+    "state": "HP",
+    "latitude": 32.215900000000005,
+    "longitude": 76.32335,
+    "elevation": 990.5
+  },
+  "Kannur": {
+    "state": "KL",
+    "latitude": 11.8333,
+    "longitude": 75.3333,
+    "elevation": 11.0
+  },
+  "Kanpur Nagar": {
+    "state": "UP",
+    "latitude": 26.416649999999994,
+    "longitude": 80.38335000000001,
+    "elevation": 124.0
+  },
+  "Kanyakumari": {
+    "state": "TN",
+    "latitude": 8.0833,
+    "longitude": 77.5,
+    "elevation": 36.0
+  },
+  "Karaikal": {
+    "state": "PY",
+    "latitude": 10.9167,
+    "longitude": 79.8333,
+    "elevation": 7.0
+  },
+  "Karnal": {
+    "state": "HR",
+    "latitude": 29.699999999999996,
+    "longitude": 77.0333,
+    "elevation": 248.0
+  },
+  "Karur": {
+    "state": "TN",
+    "latitude": 10.95,
+    "longitude": 78.0833,
+    "elevation": 182.0
+  },
+  "Keonjhar": {
+    "state": "OR",
+    "latitude": 21.6167,
+    "longitude": 85.5167,
+    "elevation": 461.0
+  },
+  "Khammam": {
+    "state": "AP",
+    "latitude": 17.25,
+    "longitude": 80.15,
+    "elevation": 110.0
+  },
+  "Khandwa": {
+    "state": "MP",
+    "latitude": 21.8333,
+    "longitude": 76.3667,
+    "elevation": 317.0
+  },
+  "Khargone": {
+    "state": "MP",
+    "latitude": 21.8167,
+    "longitude": 75.6167,
+    "elevation": 250.0
+  },
+  "Khordha": {
+    "state": "OR",
+    "latitude": 20.25,
+    "longitude": 85.8333,
+    "elevation": 45.0
+  },
+  "Kodagu": {
+    "state": "KA",
+    "latitude": 12.416700000000002,
+    "longitude": 75.7333,
+    "elevation": 1150.0
+  },
+  "Kohima": {
+    "state": "NL",
+    "latitude": 25.6333,
+    "longitude": 94.1667,
+    "elevation": 1405.0
+  },
+  "Kolhapur": {
+    "state": "MH",
+    "latitude": 16.7,
+    "longitude": 74.2333,
+    "elevation": 569.0
+  },
+  "Kolkata": {
+    "state": "WB",
+    "latitude": 22.591649999999998,
+    "longitude": 88.39165,
+    "elevation": 4.5
+  },
+  "Kollam": {
+    "state": "KL",
+    "latitude": 9.0,
+    "longitude": 76.9167,
+    "elevation": 33.0
+  },
+  "Koppal": {
+    "state": "KA",
+    "latitude": 15.349999999999998,
+    "longitude": 76.15,
+    "elevation": 532.0
+  },
+  "Koraput": {
+    "state": "OR",
+    "latitude": 18.8167,
+    "longitude": 82.7167,
+    "elevation": 0.0
+  },
+  "Kota": {
+    "state": "RJ",
+    "latitude": 25.15,
+    "longitude": 75.85,
+    "elevation": 273.0
+  },
+  "Kottayam": {
+    "state": "KL",
+    "latitude": 9.5833,
+    "longitude": 76.5167,
+    "elevation": 39.0
+  },
+  "Kozhikode": {
+    "state": "KL",
+    "latitude": 11.1934,
+    "longitude": 75.8693,
+    "elevation": 54.0
+  },
+  "Krishna": {
+    "state": "AP",
+    "latitude": 16.36597311129163,
+    "longitude": 80.9757108042242,
+    "elevation": 11.96344435418359
+  },
+  "Kullu": {
+    "state": "HP",
+    "latitude": 32.0498338190184,
+    "longitude": 77.1667,
+    "elevation": 0.0
+  },
+  "Kurnool": {
+    "state": "AP",
+    "latitude": 15.8,
+    "longitude": 78.0667,
+    "elevation": 280.0
+  },
+  "Lakhimpur": {
+    "state": "AS",
+    "latitude": 27.2333,
+    "longitude": 94.1167,
+    "elevation": 101.0
+  },
+  "Lakshadweep": {
+    "state": "LD",
+    "latitude": 10.32367876285869,
+    "longitude": 72.759187777477,
+    "elevation": 2.5778289117487816
+  },
+  "Latur": {
+    "state": "KA",
+    "latitude": 18.0667,
+    "longitude": 77.1167,
+    "elevation": 639.0
+  },
+  "Lucknow": {
+    "state": "UP",
+    "latitude": 26.80835,
+    "longitude": 80.9083,
+    "elevation": 116.0
+  },
+  "Ludhiana": {
+    "state": "PB",
+    "latitude": 30.860699999999998,
+    "longitude": 75.94295,
+    "elevation": 254.5
+  },
+  "Madurai": {
+    "state": "TN",
+    "latitude": 9.875,
+    "longitude": 78.1,
+    "elevation": 135.5
+  },
+  "Mahabubnagar": {
+    "state": "AP",
+    "latitude": 16.75,
+    "longitude": 78.0,
+    "elevation": 504.0
+  },
+  "Maharajganj": {
+    "state": "UP",
+    "latitude": 27.4333,
+    "longitude": 83.4167,
+    "elevation": 98.0
+  },
+  "Mahendragarh": {
+    "state": "HR",
+    "latitude": 28.0,
+    "longitude": 76.0833,
+    "elevation": 306.0
+  },
+  "Malappuram": {
+    "state": "KL",
+    "latitude": 11.202452680021658,
+    "longitude": 76.08060636166758,
+    "elevation": 53.89821331889551
+  },
+  "Malda": {
+    "state": "WB",
+    "latitude": 25.0333,
+    "longitude": 88.1333,
+    "elevation": 26.0
+  },
+  "Mandi": {
+    "state": "HP",
+    "latitude": 31.625,
+    "longitude": 76.93335,
+    "elevation": 817.0
+  },
+  "Mandla": {
+    "state": "MP",
+    "latitude": 22.5833,
+    "longitude": 80.3667,
+    "elevation": 441.0
+  },
+  "Mandya": {
+    "state": "KA",
+    "latitude": 12.5,
+    "longitude": 76.8333,
+    "elevation": 695.0
+  },
+  "Mayurbhanj": {
+    "state": "OR",
+    "latitude": 21.9333,
+    "longitude": 86.7667,
+    "elevation": 53.0
+  },
+  "Medak": {
+    "state": "AP",
+    "latitude": 18.05,
+    "longitude": 78.2667,
+    "elevation": 472.0
+  },
+  "Meerut": {
+    "state": "UP",
+    "latitude": 29.0167,
+    "longitude": 77.6333,
+    "elevation": 221.0
+  },
+  "Moradabad": {
+    "state": "UP",
+    "latitude": 28.8333,
+    "longitude": 78.75,
+    "elevation": 0.0
+  },
+  "Mumbai City": {
+    "state": "MH",
+    "latitude": 18.9,
+    "longitude": 72.8167,
+    "elevation": 10.0
+  },
+  "Mumbai Suburban": {
+    "state": "MH",
+    "latitude": 19.1167,
+    "longitude": 72.84164999999999,
+    "elevation": 6.0
+  },
+  "Murshidabad": {
+    "state": "WB",
+    "latitude": 24.1333,
+    "longitude": 88.2667,
+    "elevation": 18.0
+  },
+  "Muzaffarpur": {
+    "state": "BR",
+    "latitude": 26.1167,
+    "longitude": 85.4,
+    "elevation": 52.0
+  },
+  "Mysuru": {
+    "state": "KA",
+    "latitude": 12.3,
+    "longitude": 76.7,
+    "elevation": 765.0
+  },
+  "NTR": {
+    "state": "AP",
+    "latitude": 16.7833,
+    "longitude": 80.2833,
+    "elevation": 0.0
+  },
+  "Nadia": {
+    "state": "WB",
+    "latitude": 23.4,
+    "longitude": 88.5167,
+    "elevation": 12.0
+  },
+  "Nagaon": {
+    "state": "AS",
+    "latitude": 26.199999999999996,
+    "longitude": 92.5167,
+    "elevation": 64.0
+  },
+  "Nagapattinam": {
+    "state": "TN",
+    "latitude": 10.7667,
+    "longitude": 79.85,
+    "elevation": 2.0
+  },
+  "Nagpur": {
+    "state": "MH",
+    "latitude": 21.125,
+    "longitude": 79.08335,
+    "elevation": 309.5
+  },
+  "Nainital": {
+    "state": "UP",
+    "latitude": 29.451069483789738,
+    "longitude": 79.6070453729934,
+    "elevation": 2226.340415486308
+  },
+  "Nalgonda": {
+    "state": "AP",
+    "latitude": 17.0,
+    "longitude": 79.25,
+    "elevation": 0.0
+  },
+  "Nanded": {
+    "state": "MH",
+    "latitude": 19.0833,
+    "longitude": 77.3333,
+    "elevation": 355.0
+  },
+  "Nandyal": {
+    "state": "AP",
+    "latitude": 15.466700000000001,
+    "longitude": 78.4833,
+    "elevation": 211.0
+  },
+  "Narmadapuram": {
+    "state": "MP",
+    "latitude": 22.695930038022816,
+    "longitude": 77.92395085551331,
+    "elevation": 479.51980354879595
+  },
+  "Narsinghpur": {
+    "state": "MP",
+    "latitude": 22.949999999999996,
+    "longitude": 79.1833,
+    "elevation": 354.0
+  },
+  "Nashik": {
+    "state": "MH",
+    "latitude": 20.196397277807826,
+    "longitude": 74.03342053362177,
+    "elevation": 554.879574544799
+  },
+  "Nellore": {
+    "state": "AP",
+    "latitude": 14.540768084529937,
+    "longitude": 79.9833,
+    "elevation": 18.596586290978056
+  },
+  "New Delhi": {
+    "state": "DL",
+    "latitude": 28.575000000000003,
+    "longitude": 77.15835,
+    "elevation": 215.5
+  },
+  "Nicobar": {
+    "state": "AN",
+    "latitude": 8.766666666666667,
+    "longitude": 93.0611,
+    "elevation": 14.0
+  },
+  "Nilgiris": {
+    "state": "TN",
+    "latitude": 11.375,
+    "longitude": 76.76665,
+    "elevation": 1990.5
+  },
+  "Nizamabad": {
+    "state": "AP",
+    "latitude": 18.6667,
+    "longitude": 78.1,
+    "elevation": 379.0
+  },
+  "North & Middle Andaman": {
+    "state": "AN",
+    "latitude": 12.666700000000002,
+    "longitude": 92.92500000000001,
+    "elevation": 19.5
+  },
+  "North Goa": {
+    "state": "GA",
+    "latitude": 15.4833,
+    "longitude": 73.8167,
+    "elevation": 58.0
+  },
+  "Palakkad": {
+    "state": "KL",
+    "latitude": 10.7667,
+    "longitude": 76.65,
+    "elevation": 95.0
+  },
+  "Palamu": {
+    "state": "BR",
+    "latitude": 24.05,
+    "longitude": 84.0667,
+    "elevation": 0.0
+  },
+  "Palghar": {
+    "state": "MH",
+    "latitude": 19.9667,
+    "longitude": 72.7167,
+    "elevation": 4.0
+  },
+  "Pali": {
+    "state": "RJ",
+    "latitude": 25.0833,
+    "longitude": 73.0833,
+    "elevation": 294.0
+  },
+  "Parbhani": {
+    "state": "MH",
+    "latitude": 19.2667,
+    "longitude": 76.7667,
+    "elevation": 422.0
+  },
+  "Paschim Bardhaman": {
+    "state": "WB",
+    "latitude": 23.541649698189133,
+    "longitude": 87.31672823608318,
+    "elevation": 79.99597585513078
+  },
+  "Paschim Medinipur": {
+    "state": "WB",
+    "latitude": 22.4167,
+    "longitude": 87.3167,
+    "elevation": 0.0
+  },
+  "Pathankot": {
+    "state": "PB",
+    "latitude": 32.2338,
+    "longitude": 75.6346,
+    "elevation": 310.0
+  },
+  "Patiala": {
+    "state": "PB",
+    "latitude": 30.3333,
+    "longitude": 76.46669999999999,
+    "elevation": 249.0
+  },
+  "Patna": {
+    "state": "BR",
+    "latitude": 25.6,
+    "longitude": 85.1,
+    "elevation": 51.0
+  },
+  "Peddapalli": {
+    "state": "AP",
+    "latitude": 18.7667,
+    "longitude": 79.4333,
+    "elevation": 156.0
+  },
+  "Porbandar": {
+    "state": "GJ",
+    "latitude": 21.65,
+    "longitude": 69.6667,
+    "elevation": 5.0
+  },
+  "Prakasam": {
+    "state": "AP",
+    "latitude": 15.5,
+    "longitude": 80.0833,
+    "elevation": 22.0
+  },
+  "Prayagraj": {
+    "state": "UP",
+    "latitude": 25.45,
+    "longitude": 81.7333,
+    "elevation": 97.0
+  },
+  "Puducherry": {
+    "state": "TN",
+    "latitude": 11.9677,
+    "longitude": 79.8134,
+    "elevation": 37.0
+  },
+  "Pune": {
+    "state": "MH",
+    "latitude": 18.503410265438788,
+    "longitude": 73.9774476480679,
+    "elevation": 569.0424340917298
+  },
+  "Purba Bardhaman": {
+    "state": "WB",
+    "latitude": 23.2333,
+    "longitude": 87.85,
+    "elevation": 0.0
+  },
+  "Purba Medinipur": {
+    "state": "WB",
+    "latitude": 21.808300000000003,
+    "longitude": 87.76665,
+    "elevation": 5.0
+  },
+  "Puri": {
+    "state": "OR",
+    "latitude": 19.800000000000004,
+    "longitude": 85.8167,
+    "elevation": 5.0
+  },
+  "Purnia": {
+    "state": "BR",
+    "latitude": 25.2667,
+    "longitude": 87.4667,
+    "elevation": 0.0
+  },
+  "Purulia": {
+    "state": "WB",
+    "latitude": 23.3333,
+    "longitude": 86.4167,
+    "elevation": 254.0
+  },
+  "Rae Bareli": {
+    "state": "UP",
+    "latitude": 26.25,
+    "longitude": 81.3667,
+    "elevation": 107.0
+  },
+  "Raichur": {
+    "state": "KA",
+    "latitude": 16.2,
+    "longitude": 77.35,
+    "elevation": 398.0
+  },
+  "Raigad": {
+    "state": "MH",
+    "latitude": 18.72850233625365,
+    "longitude": 72.98001798080934,
+    "elevation": 3.6399666249478515
+  },
+  "Raipur (CT)": {
+    "state": "CT",
+    "latitude": 21.2333,
+    "longitude": 81.65,
+    "elevation": 313.0
+  },
+  "Raipur (MP)": {
+    "state": "MP",
+    "latitude": 21.216700000000003,
+    "longitude": 81.6667,
+    "elevation": 294.0
+  },
+  "Raisen": {
+    "state": "MP",
+    "latitude": 23.3167,
+    "longitude": 77.83329999999998,
+    "elevation": 435.0
+  },
+  "Rajgarh": {
+    "state": "MP",
+    "latitude": 24.0,
+    "longitude": 76.7167,
+    "elevation": 380.0
+  },
+  "Rajkot": {
+    "state": "GJ",
+    "latitude": 22.3,
+    "longitude": 70.7833,
+    "elevation": 134.0
+  },
+  "Rajnandgaon": {
+    "state": "CT",
+    "latitude": 21.1,
+    "longitude": 81.0333,
+    "elevation": 329.0
+  },
+  "Ramanathapuram": {
+    "state": "TN",
+    "latitude": 9.47906282051282,
+    "longitude": 79.1786173076923,
+    "elevation": 7.269230769230769
+  },
+  "Ramban": {
+    "state": "JK",
+    "latitude": 33.5,
+    "longitude": 75.1667,
+    "elevation": 1624.0
+  },
+  "Rampur": {
+    "state": "UP",
+    "latitude": 28.75,
+    "longitude": 79.0,
+    "elevation": 191.0
+  },
+  "Ranchi": {
+    "state": "BR",
+    "latitude": 23.375,
+    "longitude": 85.35835,
+    "elevation": 649.5
+  },
+  "Ratlam": {
+    "state": "MP",
+    "latitude": 23.316699999999997,
+    "longitude": 75.05,
+    "elevation": 484.0
+  },
+  "Ratnagiri": {
+    "state": "MH",
+    "latitude": 17.320655444203684,
+    "longitude": 73.23886152491873,
+    "elevation": 51.521939328277355
+  },
+  "Rewa": {
+    "state": "MP",
+    "latitude": 24.5333,
+    "longitude": 81.3,
+    "elevation": 298.0
+  },
+  "Ri-Bhoi": {
+    "state": "ML",
+    "latitude": 25.699999999999996,
+    "longitude": 91.9667,
+    "elevation": 893.0
+  },
+  "Rohtak": {
+    "state": "HR",
+    "latitude": 28.8333,
+    "longitude": 76.5833,
+    "elevation": 0.0
+  },
+  "Rohtas": {
+    "state": "BR",
+    "latitude": 24.9167,
+    "longitude": 84.1833,
+    "elevation": 0.0
+  },
+  "Sagar": {
+    "state": "MP",
+    "latitude": 23.849999999999998,
+    "longitude": 78.75,
+    "elevation": 550.0
+  },
+  "Salem": {
+    "state": "TN",
+    "latitude": 11.697876447876448,
+    "longitude": 78.1667,
+    "elevation": 845.8571428571429
+  },
+  "Sambalpur": {
+    "state": "OR",
+    "latitude": 21.4667,
+    "longitude": 83.9667,
+    "elevation": 0.0
+  },
+  "Sangli": {
+    "state": "MH",
+    "latitude": 16.85,
+    "longitude": 74.6,
+    "elevation": 545.0
+  },
+  "Saran": {
+    "state": "BR",
+    "latitude": 25.7833,
+    "longitude": 84.7333,
+    "elevation": 55.0
+  },
+  "Satara": {
+    "state": "MH",
+    "latitude": 17.83649641073658,
+    "longitude": 73.75576580836454,
+    "elevation": 1204.1488764044943
+  },
+  "Satna": {
+    "state": "MP",
+    "latitude": 24.5667,
+    "longitude": 80.8333,
+    "elevation": 315.0
+  },
+  "Sawai Madhopur": {
+    "state": "RJ",
+    "latitude": 25.9833,
+    "longitude": 76.3667,
+    "elevation": 0.0
+  },
+  "Seoni": {
+    "state": "MP",
+    "latitude": 22.0833,
+    "longitude": 79.55,
+    "elevation": 617.0
+  },
+  "Shahjahanpur": {
+    "state": "UP",
+    "latitude": 27.8833,
+    "longitude": 79.9,
+    "elevation": 155.0
+  },
+  "Shajapur": {
+    "state": "MP",
+    "latitude": 23.433300000000003,
+    "longitude": 76.3167,
+    "elevation": 444.0
+  },
+  "Sheopur": {
+    "state": "MP",
+    "latitude": 25.666699999999995,
+    "longitude": 76.6833,
+    "elevation": 234.0
+  },
+  "Shimla": {
+    "state": "HP",
+    "latitude": 31.09567648372687,
+    "longitude": 77.14325323867263,
+    "elevation": 2048.4507019783023
+  },
+  "Shivamogga": {
+    "state": "KA",
+    "latitude": 13.722033512424446,
+    "longitude": 75.36513344526527,
+    "elevation": 613.4190732034923
+  },
+  "Shivpuri": {
+    "state": "MP",
+    "latitude": 25.3333,
+    "longitude": 77.65,
+    "elevation": 463.0
+  },
+  "Sidhi": {
+    "state": "MP",
+    "latitude": 24.4167,
+    "longitude": 81.8667,
+    "elevation": 270.0
+  },
+  "Sikar": {
+    "state": "RJ",
+    "latitude": 27.6167,
+    "longitude": 75.1333,
+    "elevation": 431.0
+  },
+  "Sindhudurg": {
+    "state": "MH",
+    "latitude": 15.8667,
+    "longitude": 73.6333,
+    "elevation": 15.0
+  },
+  "Sirohi": {
+    "state": "RJ",
+    "latitude": 24.6,
+    "longitude": 72.7167,
+    "elevation": 1196.0
+  },
+  "Solan": {
+    "state": "HP",
+    "latitude": 30.9,
+    "longitude": 77.0167,
+    "elevation": 1986.0
+  },
+  "Solapur": {
+    "state": "MH",
+    "latitude": 17.77432858498238,
+    "longitude": 75.75872865275143,
+    "elevation": 485.47628083491463
+  },
+  "Sonitpur": {
+    "state": "AS",
+    "latitude": 26.6167,
+    "longitude": 92.7833,
+    "elevation": 77.0
+  },
+  "South 24 Parganas": {
+    "state": "WB",
+    "latitude": 22.21665,
+    "longitude": 88.43335,
+    "elevation": 3.5
+  },
+  "South Andaman": {
+    "state": "AN",
+    "latitude": 11.51028851741563,
+    "longitude": 92.69995975455693,
+    "elevation": 34.00491788485833
+  },
+  "South Goa": {
+    "state": "GA",
+    "latitude": 15.4,
+    "longitude": 73.8,
+    "elevation": 51.5
+  },
+  "Sri Sathya Sai": {
+    "state": "AP",
+    "latitude": 14.6833,
+    "longitude": 77.6167,
+    "elevation": 349.0
+  },
+  "Srikakulam": {
+    "state": "AP",
+    "latitude": 18.3333,
+    "longitude": 84.1333,
+    "elevation": 5.0
+  },
+  "Srinagar": {
+    "state": "JK",
+    "latitude": 34.0333,
+    "longitude": 74.8083,
+    "elevation": 1624.5
+  },
+  "Sundargarh": {
+    "state": "OR",
+    "latitude": 22.052328415300547,
+    "longitude": 84.15735289617486,
+    "elevation": 197.24590163934425
+  },
+  "Supaul": {
+    "state": "BR",
+    "latitude": 26.1333,
+    "longitude": 86.5833,
+    "elevation": 0.0
+  },
+  "Surat": {
+    "state": "GJ",
+    "latitude": 21.157049999999998,
+    "longitude": 72.78755,
+    "elevation": 7.5
+  },
+  "Surendranagar": {
+    "state": "GJ",
+    "latitude": 22.7333,
+    "longitude": 71.6,
+    "elevation": 72.0
+  },
+  "Surguja": {
+    "state": "MP",
+    "latitude": 23.1667,
+    "longitude": 83.25,
+    "elevation": 596.0
+  },
+  "Tehri Garhwal": {
+    "state": "UP",
+    "latitude": 30.4,
+    "longitude": 78.4833,
+    "elevation": 0.0
+  },
+  "Thanjavur": {
+    "state": "TN",
+    "latitude": 10.530477419354838,
+    "longitude": 79.27375698924732,
+    "elevation": 2.247311827956989
+  },
+  "Theni": {
+    "state": "KL",
+    "latitude": 10.0,
+    "longitude": 77.1333,
+    "elevation": 300.0
+  },
+  "Thoothukudi": {
+    "state": "TN",
+    "latitude": 8.75,
+    "longitude": 78.1833,
+    "elevation": 0.0
+  },
+  "Thrissur": {
+    "state": "KL",
+    "latitude": 10.5167,
+    "longitude": 76.2167,
+    "elevation": 40.0
+  },
+  "Tikamgarh": {
+    "state": "MP",
+    "latitude": 24.7667,
+    "longitude": 78.8333,
+    "elevation": 344.0
+  },
+  "Tiruchirappalli": {
+    "state": "TN",
+    "latitude": 10.7667,
+    "longitude": 78.7167,
+    "elevation": 85.0
+  },
+  "Tirunelveli": {
+    "state": "TN",
+    "latitude": 8.7333,
+    "longitude": 77.75,
+    "elevation": 45.0
+  },
+  "Tirupati": {
+    "state": "AP",
+    "latitude": 13.610885369127516,
+    "longitude": 79.20934241610738,
+    "elevation": 304.0704697986577
+  },
+  "Tirupattur": {
+    "state": "TN",
+    "latitude": 12.4833,
+    "longitude": 78.5667,
+    "elevation": 385.0
+  },
+  "Tiruvallur": {
+    "state": "TN",
+    "latitude": 13.15,
+    "longitude": 79.5333,
+    "elevation": 0.0
+  },
+  "Udaipur": {
+    "state": "RJ",
+    "latitude": 24.605900000000002,
+    "longitude": 73.82646666666668,
+    "elevation": 534.3333333333334
+  },
+  "Udalguri": {
+    "state": "AS",
+    "latitude": 26.75,
+    "longitude": 92.35,
+    "elevation": 0.0
+  },
+  "Udham Singh Nagar": {
+    "state": "UP",
+    "latitude": 29.0333,
+    "longitude": 79.4667,
+    "elevation": 233.0
+  },
+  "Ujjain": {
+    "state": "MP",
+    "latitude": 23.183300000000003,
+    "longitude": 75.7833,
+    "elevation": 488.0
+  },
+  "Umaria": {
+    "state": "MP",
+    "latitude": 23.5333,
+    "longitude": 80.8833,
+    "elevation": 458.0
+  },
+  "Una": {
+    "state": "HP",
+    "latitude": 31.4667,
+    "longitude": 76.2667,
+    "elevation": 365.0
+  },
+  "Unakoti": {
+    "state": "TR",
+    "latitude": 24.3167,
+    "longitude": 92.0,
+    "elevation": 27.0
+  },
+  "Uttara Kannada": {
+    "state": "KA",
+    "latitude": 14.353465455531454,
+    "longitude": 74.38651586225596,
+    "elevation": 19.605477223427332
+  },
+  "Vadodara": {
+    "state": "GJ",
+    "latitude": 22.316650000000006,
+    "longitude": 73.25835000000001,
+    "elevation": 35.5
+  },
+  "Valsad": {
+    "state": "GJ",
+    "latitude": 20.6167,
+    "longitude": 72.9333,
+    "elevation": 0.0
+  },
+  "Varanasi": {
+    "state": "UP",
+    "latitude": 25.375,
+    "longitude": 82.9417,
+    "elevation": 84.5
+  },
+  "Vellore": {
+    "state": "TN",
+    "latitude": 12.9167,
+    "longitude": 79.15,
+    "elevation": 213.0
+  },
+  "Vidisha": {
+    "state": "MP",
+    "latitude": 23.5333,
+    "longitude": 77.8167,
+    "elevation": 425.0
+  },
+  "Virudhunagar": {
+    "state": "TN",
+    "latitude": 9.55,
+    "longitude": 78.0833,
+    "elevation": 103.0
+  },
+  "Visakhapatnam": {
+    "state": "AP",
+    "latitude": 17.71365,
+    "longitude": 83.247775,
+    "elevation": 14.5
+  },
+  "Wardha": {
+    "state": "MH",
+    "latitude": 20.6667,
+    "longitude": 78.5833,
+    "elevation": 282.0
+  },
+  "Washim": {
+    "state": "MP",
+    "latitude": 20.1167,
+    "longitude": 77.1333,
+    "elevation": 565.0
+  },
+  "West Godavari": {
+    "state": "AP",
+    "latitude": 16.4333,
+    "longitude": 81.7,
+    "elevation": 0.0
+  },
+  "West Tripura": {
+    "state": "TR",
+    "latitude": 23.8833,
+    "longitude": 91.25,
+    "elevation": 15.0
+  },
+  "YSR": {
+    "state": "AP",
+    "latitude": 14.4833,
+    "longitude": 78.8333,
+    "elevation": 129.0
+  },
+  "Yavatmal": {
+    "state": "MH",
+    "latitude": 20.4,
+    "longitude": 78.15,
+    "elevation": 450.0
   }
 }

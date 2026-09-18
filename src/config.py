@@ -120,3 +120,49 @@ class SplitDates:
 
 
 SPLIT_DATES = SplitDates()
+
+# --------------------------------------------------------------------------
+# All-India pooled model — a SEPARATE, shorter split window from the
+# single-district model above.
+#
+# Evidence (checked across the full dataset, all districts, before
+# choosing this): rainfall-reporting completeness has a hard, dataset-wide
+# step change exactly at 2021-01-01 (missingness ~87% in Dec 2020 to ~6.5%
+# in Jan 2021, uniformly across every district simultaneously — a data-
+# generation-process artifact, not a real station-rollout, which would be
+# gradual and regionally staggered, not a single nationwide overnight
+# jump). Missingness then falls further to ~0% by mid-2022 onward.
+#
+# Because of this, and because the Thiruvananthapuram-specific "missing
+# correlates with dry/warm conditions" justification for zero-imputation
+# did NOT replicate nationally (checked across 143 districts: only 66
+# showed the same-direction effect, 77 showed the opposite — no reliable
+# national signal), the all-India model trains ONLY on the reliably-
+# reported era (2021 onward) and relies on dropping incomplete windows
+# rather than imputing, avoiding an assumption the evidence doesn't
+# support at national scale. See src/ml/train_all_india.py.
+ALL_INDIA_TRAIN_START = "2021-01-01"
+ALL_INDIA_TRAIN_END = "2023-06-30"
+ALL_INDIA_VAL_START = "2023-07-01"
+ALL_INDIA_VAL_END = "2024-06-30"
+ALL_INDIA_TEST_START = "2024-07-01"
+ALL_INDIA_TEST_END = "2025-02-10"
+
+ALL_INDIA_SPLIT_DATES = SplitDates(
+    train_start=ALL_INDIA_TRAIN_START,
+    train_end=ALL_INDIA_TRAIN_END,
+    val_start=ALL_INDIA_VAL_START,
+    val_end=ALL_INDIA_VAL_END,
+    test_start=ALL_INDIA_TEST_START,
+    test_end=ALL_INDIA_TEST_END,
+)
+
+ALL_INDIA_MODEL_NAME = "Rainfall_Forecast_Mausam"
+ALL_INDIA_PROCESSED_CACHE = PROCESSED_DATA_DIR / "all_districts_daily.parquet"
+ALL_INDIA_MODEL_DIR = MODELS_DIR / "all-india"
+ALL_INDIA_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+(ALL_INDIA_MODEL_DIR / "plots").mkdir(parents=True, exist_ok=True)
+
+
+def hf_repo_id_all_india() -> str:
+    return f"{HF_USERNAME}/{ALL_INDIA_MODEL_NAME}"

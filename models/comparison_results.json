@@ -1,0 +1,365 @@
+[
+  {
+    "district": "Thiruvananthapuram",
+    "per_district": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.13302752293577982,
+        "accuracy": 0.8669724770642202,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.5599343185550083,
+        "pr_auc": 0.1432954915279444,
+        "brier_score": 0.12625105087597976,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              189,
+              0
+            ],
+            [
+              29,
+              0
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 27.234665365128908,
+        "rmse": 33.50678492265787,
+        "r2": 0.24844735774294824,
+        "mean_actual": 40.32178899082569,
+        "mean_predicted": 42.27062719151026
+      }
+    },
+    "all_india": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.3073394495412844,
+        "accuracy": 0.6330275229357798,
+        "precision": 0.27586206896551724,
+        "recall": 0.11940298507462686,
+        "f1": 0.16666666666666666,
+        "roc_auc": 0.5320747257092023,
+        "pr_auc": 0.3183446554348007,
+        "brier_score": 0.22938310685715094,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              130,
+              21
+            ],
+            [
+              59,
+              8
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 27.389723076076685,
+        "rmse": 33.19362288754166,
+        "r2": 0.2624300721051035,
+        "mean_actual": 40.32178899082569,
+        "mean_predicted": 47.9239908795838
+      }
+    }
+  },
+  {
+    "district": "New Delhi",
+    "per_district": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.01834862385321101,
+        "accuracy": 0.981651376146789,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "roc_auc": 0.7067757009345794,
+        "pr_auc": 0.036235955056179776,
+        "brier_score": 0.032857543550756686,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              214,
+              0
+            ],
+            [
+              4,
+              0
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 18.925727076471087,
+        "rmse": 31.08023867584949,
+        "r2": 0.2582955315031634,
+        "mean_actual": 25.827293577981653,
+        "mean_predicted": 16.195418498371208
+      }
+    },
+    "all_india": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.1743119266055046,
+        "accuracy": 0.7798165137614679,
+        "precision": 0.1875,
+        "recall": 0.07894736842105263,
+        "f1": 0.1111111111111111,
+        "roc_auc": 0.7312865497076023,
+        "pr_auc": 0.3038184176050689,
+        "brier_score": 0.13972051384751064,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              167,
+              13
+            ],
+            [
+              35,
+              3
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 26.07638824308684,
+        "rmse": 34.888426174790425,
+        "r2": 0.06540175205859722,
+        "mean_actual": 25.827293577981653,
+        "mean_predicted": 37.83327636669535
+      }
+    }
+  },
+  {
+    "district": "Mumbai Suburban",
+    "per_district": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.0779816513761468,
+        "accuracy": 0.8761467889908257,
+        "precision": 0.32142857142857145,
+        "recall": 0.5294117647058824,
+        "f1": 0.4,
+        "roc_auc": 0.8800117061750072,
+        "pr_auc": 0.3856499765036382,
+        "brier_score": 0.08300802801459956,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              182,
+              19
+            ],
+            [
+              8,
+              9
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 37.9438427670104,
+        "rmse": 69.0190335639708,
+        "r2": 0.5168795857417243,
+        "mean_actual": 60.66529051987767,
+        "mean_predicted": 61.68586627141051
+      }
+    },
+    "all_india": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.16055045871559634,
+        "accuracy": 0.8577981651376146,
+        "precision": 0.5588235294117647,
+        "recall": 0.5428571428571428,
+        "f1": 0.5507246376811594,
+        "roc_auc": 0.8992974238875878,
+        "pr_auc": 0.6006221502747521,
+        "brier_score": 0.09416177428328318,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              168,
+              15
+            ],
+            [
+              16,
+              19
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 37.924017350285084,
+        "rmse": 66.25547147566668,
+        "r2": 0.5547938664479547,
+        "mean_actual": 60.66529051987767,
+        "mean_predicted": 55.31122944053741
+      }
+    }
+  },
+  {
+    "district": "Jaisalmer",
+    "per_district": null,
+    "all_india": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.05045871559633028,
+        "accuracy": 0.9770642201834863,
+        "precision": 1.0,
+        "recall": 0.5454545454545454,
+        "f1": 0.7058823529411765,
+        "roc_auc": 0.9929732103645148,
+        "pr_auc": 0.915909090909091,
+        "brier_score": 0.03347811340119536,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              207,
+              0
+            ],
+            [
+              5,
+              6
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 13.154162817579957,
+        "rmse": 29.809110533943276,
+        "r2": 0.21250874808024423,
+        "mean_actual": 13.582568807339447,
+        "mean_predicted": 11.010963516831056
+      }
+    }
+  },
+  {
+    "district": "Kolkata",
+    "per_district": null,
+    "all_india": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.11926605504587157,
+        "accuracy": 0.8256880733944955,
+        "precision": 0.34210526315789475,
+        "recall": 0.5,
+        "f1": 0.40625,
+        "roc_auc": 0.8451522435897436,
+        "pr_auc": 0.4726470121444729,
+        "brier_score": 0.10984144887000385,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              167,
+              25
+            ],
+            [
+              13,
+              13
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 24.02266995866672,
+        "rmse": 36.769159474495964,
+        "r2": 0.48211474251079955,
+        "mean_actual": 42.80848623853211,
+        "mean_predicted": 42.085452442723884
+      }
+    }
+  },
+  {
+    "district": "Bengaluru Urban",
+    "per_district": null,
+    "all_india": {
+      "classifier": {
+        "n_samples": 218,
+        "positive_rate": 0.3577981651376147,
+        "accuracy": 0.6697247706422018,
+        "precision": 0.5333333333333333,
+        "recall": 0.6153846153846154,
+        "f1": 0.5714285714285714,
+        "roc_auc": 0.7017399267399267,
+        "pr_auc": 0.49304988281948425,
+        "brier_score": 0.2043582929418259,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              98,
+              42
+            ],
+            [
+              30,
+              48
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 218,
+        "mae": 18.329685460372804,
+        "rmse": 25.011067805410473,
+        "r2": 0.32636350366193567,
+        "mean_actual": 24.85045871559633,
+        "mean_predicted": 32.49668641402087
+      }
+    }
+  }
+]

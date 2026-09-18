@@ -1,0 +1,333 @@
+{
+  "baseline": {
+    "n_samples": 62376,
+    "positive_rate": 0.20990445042965242,
+    "accuracy": 0.7900955495703476,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.6923227931429853,
+    "pr_auc": 0.29949153568122266,
+    "brier_score": 0.1406444080184764,
+    "confusion_matrix": {
+      "labels": [
+        "sufficient(0)",
+        "insufficient(1)"
+      ],
+      "matrix": [
+        [
+          49283,
+          0
+        ],
+        [
+          13093,
+          0
+        ]
+      ]
+    },
+    "decision_threshold": 0.5
+  },
+  "classifier": {
+    "n_samples": 62376,
+    "positive_rate": 0.20990445042965242,
+    "accuracy": 0.753943824547903,
+    "precision": 0.3935215789970724,
+    "recall": 0.31826166653937216,
+    "f1": 0.3519128451988852,
+    "roc_auc": 0.7538655050458634,
+    "pr_auc": 0.37917889763719564,
+    "brier_score": 0.15237644673713535,
+    "confusion_matrix": {
+      "labels": [
+        "sufficient(0)",
+        "insufficient(1)"
+      ],
+      "matrix": [
+        [
+          42861,
+          6422
+        ],
+        [
+          8926,
+          4167
+        ]
+      ]
+    },
+    "decision_threshold": 0.5
+  },
+  "baseline_regression": {
+    "n_samples": 62376,
+    "mae": 23.395088883377326,
+    "rmse": 41.24803867091677,
+    "r2": 0.4623462007807537,
+    "mean_actual": 34.93357474562866,
+    "mean_predicted": 35.568728168794394
+  },
+  "regressor": {
+    "n_samples": 62376,
+    "mae": 23.6481010999463,
+    "rmse": 41.93383861432678,
+    "r2": 0.44431924988412164,
+    "mean_actual": 34.93357474562866,
+    "mean_predicted": 36.61483482005798
+  },
+  "chosen_classifier_model": "xgboost",
+  "chosen_classifier_params": {
+    "learning_rate": 0.1,
+    "max_depth": 5,
+    "n_estimators": 200
+  },
+  "chosen_classifier_val_auc": 0.8142318960700923,
+  "chosen_regressor_model": "xgboost",
+  "chosen_regressor_params": {
+    "learning_rate": 0.05,
+    "max_depth": 5,
+    "n_estimators": 200
+  },
+  "chosen_regressor_val_mae": 19.94515651691241,
+  "train_positive_rate": 0.1926659184161622,
+  "val_positive_rate": 0.26494611309725735,
+  "test_positive_rate": 0.20990445042965242,
+  "row_counts": {
+    "train": 271745,
+    "val": 114963,
+    "test": 62376
+  },
+  "n_districts_trained": 316,
+  "per_district_sample": {
+    "Thiruvananthapuram": {
+      "n_test_rows": 211,
+      "classifier": {
+        "n_samples": 211,
+        "positive_rate": 0.3080568720379147,
+        "accuracy": 0.6303317535545023,
+        "precision": 0.27586206896551724,
+        "recall": 0.12307692307692308,
+        "f1": 0.1702127659574468,
+        "roc_auc": 0.4944151738672288,
+        "pr_auc": 0.3004184508773421,
+        "brier_score": 0.237308405500616,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              125,
+              21
+            ],
+            [
+              57,
+              8
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 211,
+        "mae": 28.451067191390628,
+        "rmse": 33.92477609994963,
+        "r2": 0.24609766807013134,
+        "mean_actual": 41.03530805687204,
+        "mean_predicted": 49.04081640198333
+      }
+    },
+    "Mumbai Suburban": {
+      "n_test_rows": 210,
+      "classifier": {
+        "n_samples": 210,
+        "positive_rate": 0.16666666666666666,
+        "accuracy": 0.8523809523809524,
+        "precision": 0.5588235294117647,
+        "recall": 0.5428571428571428,
+        "f1": 0.5507246376811594,
+        "roc_auc": 0.8946938775510204,
+        "pr_auc": 0.6006221502747521,
+        "brier_score": 0.09783497219738883,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              160,
+              15
+            ],
+            [
+              16,
+              19
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 210,
+        "mae": 38.88334995388098,
+        "rmse": 67.46194668492787,
+        "r2": 0.5489625780022083,
+        "mean_actual": 62.97539682539682,
+        "mean_predicted": 56.91490455639681
+      }
+    },
+    "New Delhi": {
+      "n_test_rows": 210,
+      "classifier": {
+        "n_samples": 210,
+        "positive_rate": 0.18095238095238095,
+        "accuracy": 0.7476190476190476,
+        "precision": 0.14285714285714285,
+        "recall": 0.07894736842105263,
+        "f1": 0.1016949152542373,
+        "roc_auc": 0.6783965728274174,
+        "pr_auc": 0.2751536273497209,
+        "brier_score": 0.15310267638682876,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              154,
+              18
+            ],
+            [
+              35,
+              3
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 210,
+        "mae": 26.76848714595749,
+        "rmse": 35.52064022317232,
+        "r2": 0.048394760476065724,
+        "mean_actual": 26.80619047619048,
+        "mean_predicted": 38.966656674373716
+      }
+    },
+    "Kolkata": {
+      "n_test_rows": 209,
+      "classifier": {
+        "n_samples": 209,
+        "positive_rate": 0.12440191387559808,
+        "accuracy": 0.8181818181818182,
+        "precision": 0.34210526315789475,
+        "recall": 0.5,
+        "f1": 0.40625,
+        "roc_auc": 0.837536780159731,
+        "pr_auc": 0.4726470121444728,
+        "brier_score": 0.11448248777800672,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              158,
+              25
+            ],
+            [
+              13,
+              13
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 209,
+        "mae": 24.209426507548066,
+        "rmse": 37.346091553265296,
+        "r2": 0.4718260149471696,
+        "mean_actual": 44.65191387559808,
+        "mean_predicted": 43.05003216077516
+      }
+    },
+    "Jaisalmer": {
+      "n_test_rows": 200,
+      "classifier": {
+        "n_samples": 200,
+        "positive_rate": 0.055,
+        "accuracy": 0.975,
+        "precision": 1.0,
+        "recall": 0.5454545454545454,
+        "f1": 0.7058823529411765,
+        "roc_auc": 0.9951899951899952,
+        "pr_auc": 0.9378445084327438,
+        "brier_score": 0.032002322581037246,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              189,
+              0
+            ],
+            [
+              5,
+              6
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 200,
+        "mae": 13.783170261995867,
+        "rmse": 31.038336484831962,
+        "r2": 0.20566526868065926,
+        "mean_actual": 13.7025,
+        "mean_predicted": 11.118752680933103
+      }
+    },
+    "Bengaluru Urban": {
+      "n_test_rows": 198,
+      "classifier": {
+        "n_samples": 198,
+        "positive_rate": 0.3686868686868687,
+        "accuracy": 0.6363636363636364,
+        "precision": 0.5066666666666667,
+        "recall": 0.5205479452054794,
+        "f1": 0.5135135135135135,
+        "roc_auc": 0.6665205479452054,
+        "pr_auc": 0.46850931948554336,
+        "brier_score": 0.2165666886587392,
+        "confusion_matrix": {
+          "labels": [
+            "sufficient(0)",
+            "insufficient(1)"
+          ],
+          "matrix": [
+            [
+              88,
+              37
+            ],
+            [
+              35,
+              38
+            ]
+          ]
+        },
+        "decision_threshold": 0.5
+      },
+      "regressor": {
+        "n_samples": 198,
+        "mae": 18.347757452003883,
+        "rmse": 24.933879533071075,
+        "r2": 0.373019435007364,
+        "mean_actual": 25.849494949494954,
+        "mean_predicted": 32.43174065634458
+      }
+    }
+  }
+}

@@ -1,14 +1,31 @@
-"""End-to-end training: load -> clean -> feature-engineer -> chronological
-split -> baseline -> RandomForest/XGBoost (small val-selected grid search)
--> calibration -> test evaluation -> save artifacts.
+"""Trains ONE pooled model across every district in the dataset —
+"Rainfall_Forecast_Mausam" — instead of one model per district.
 
-Run via scripts/train_model.py, not directly.
+Key differences from src/ml/train.py (single-district):
+  - Uses ALL_INDIA_SPLIT_DATES (2021-2025), not SPLIT_DATES (2015-2025).
+    See src/config.py for the evidence: reporting completeness has a
+    hard, dataset-wide step change exactly at 2021-01-01, and the
+    zero-imputation assumption validated for Thiruvananthapuram did not
+    replicate nationally. Training only on the reliably-reported era
+    avoids leaning on either.
+  - impute_as_zero=False — rows with incomplete history/target are
+    dropped rather than imputed, for the same reason.
+  - Climatology/threshold are (district, month)-keyed (engineering.py
+    already supports this — see compute_monthly_climatology's docstring).
+  - Feature engineering runs per-district before pooling
+    (build_features_multi_district) so no rolling window crosses a
+    district boundary.
+  - Smaller hyperparameter grids — pooled training data is ~100x larger
+    than a single district, so an exhaustive grid would be far slower for
+    limited extra benefit; more data already regularizes better than
+    aggressive hyperparameter tuning would on a single district.
+
+Run via scripts/train_all_india_model.py, not directly.
 """
 from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 
 import joblib
 import numpy as np
@@ -16,116 +33,77 @@ import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.frozen import FrozenEstimator
-from sklearn.model_selection import ParameterGrid
 from xgboost import XGBClassifier, XGBRegressor
 
 from src.config import (
-    DEFAULT_DISTRICT,
+    ALL_INDIA_MODEL_DIR,
+    ALL_INDIA_PROCESSED_CACHE,
+    ALL_INDIA_SPLIT_DATES,
+    DISTRICT_CONFIG_PATH,
     MODEL_VERSION,
     RAINFALL_RISK_THRESHOLD_PERCENTILE,
     RAW_DATA_PATH,
-    SPLIT_DATES,
-    local_model_dir,
 )
 from src.data.cleaner import clean_dataset
-from src.data.district import get_district_daily_series
+from src.data.district import get_all_districts_daily_series
 from src.data.loader import load_raw_dataset
 from src.features.engineering import (
     FEATURE_COLUMNS,
     RainfallFeaturePreprocessor,
-    build_features,
-    compute_target,
+    build_features_multi_district,
+    compute_target_multi_district,
 )
 from src.ml import evaluate as ev
 from src.ml.baseline import ClimatologyBaseline
+from src.ml.train import _drop_invalid_targets, _search_classifier, _search_regressor
 
 logger = logging.getLogger(__name__)
 
+# Trimmed relative to the single-district grids — pooled data is ~100x
+# larger, so a handful of configs already differentiates well, and larger
+# min_samples_leaf / max_depth guard against memorizing individual
+# districts' quirks rather than learning transferable patterns.
+RF_CLASSIFIER_GRID = {"n_estimators": [200], "max_depth": [8, 14], "min_samples_leaf": [20, 50]}
+XGB_CLASSIFIER_GRID = {"n_estimators": [200], "max_depth": [5, 7], "learning_rate": [0.05, 0.1]}
+RF_REGRESSOR_GRID = {"n_estimators": [200], "max_depth": [8, 14], "min_samples_leaf": [20, 50]}
+XGB_REGRESSOR_GRID = {"n_estimators": [200], "max_depth": [5, 7], "learning_rate": [0.05, 0.1]}
 
-class DegenerateTargetError(RuntimeError):
-    """Raised when a district's training split has 0% (or 100%) positive
-    rate — the monthly-tercile threshold has collapsed to a value the
-    7-day rainfall sum can never cross, so no binary classifier can be
-    fit at all. Seen for consistently very dry districts (e.g. Jaisalmer)
-    with a long, confident per-month history: the 33rd percentile of
-    weekly rainfall is legitimately ~0mm for most/all months, not a data
-    artifact. This is a real limitation of the fixed-percentile threshold
-    for arid regions, not something to silently paper over.
-    """
 
-RF_CLASSIFIER_GRID = {
-    "n_estimators": [200, 400],
-    "max_depth": [4, 8, None],
-    "min_samples_leaf": [5, 10],
-}
-XGB_CLASSIFIER_GRID = {
-    "n_estimators": [200, 400],
-    "max_depth": [3, 5],
-    "learning_rate": [0.05, 0.1],
-}
-RF_REGRESSOR_GRID = {
-    "n_estimators": [200, 400],
-    "max_depth": [4, 8, None],
-    "min_samples_leaf": [5, 10],
-}
-XGB_REGRESSOR_GRID = {
-    "n_estimators": [200, 400],
-    "max_depth": [3, 5],
-    "learning_rate": [0.05, 0.1],
-}
+def _load_all_districts_daily(force_reload: bool = False) -> pd.DataFrame:
+    if not force_reload and ALL_INDIA_PROCESSED_CACHE.exists():
+        logger.info("Loading cached all-districts daily series from %s", ALL_INDIA_PROCESSED_CACHE)
+        return pd.read_parquet(ALL_INDIA_PROCESSED_CACHE)
+    raw = load_raw_dataset()
+    clean = clean_dataset(raw)
+    all_daily = get_all_districts_daily_series(clean)
+    all_daily.to_parquet(ALL_INDIA_PROCESSED_CACHE, index=False)
+    return all_daily
 
 
 def _split_by_date(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     d = df["date_of_record"]
+    sd = ALL_INDIA_SPLIT_DATES
     return {
-        "train": df[(d >= SPLIT_DATES.train_start) & (d <= SPLIT_DATES.train_end)],
-        "val": df[(d >= SPLIT_DATES.val_start) & (d <= SPLIT_DATES.val_end)],
-        "test": df[(d >= SPLIT_DATES.test_start) & (d <= SPLIT_DATES.test_end)],
+        "train": df[(d >= sd.train_start) & (d <= sd.train_end)],
+        "val": df[(d >= sd.val_start) & (d <= sd.val_end)],
+        "test": df[(d >= sd.test_start) & (d <= sd.test_end)],
     }
 
 
-def _drop_invalid_targets(X: pd.DataFrame, labeled: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    valid = labeled["rainfall_next_7_days"].notna()
-    return X[valid].reset_index(drop=True), labeled[valid].reset_index(drop=True)
-
-
-def _search_classifier(model_cls, grid: dict, X_train, y_train, X_val, y_val, **fixed):
-    best = None
-    for params in ParameterGrid(grid):
-        model = model_cls(**params, **fixed)
-        model.fit(X_train, y_train)
-        proba = model.predict_proba(X_val)[:, 1]
-        auc = ev.roc_auc_score(y_val, proba) if len(set(y_val)) > 1 else 0.0
-        if best is None or auc > best["auc"]:
-            best = {"model": model, "params": params, "auc": auc}
-    return best
-
-
-def _search_regressor(model_cls, grid: dict, X_train, y_train, X_val, y_val, **fixed):
-    best = None
-    for params in ParameterGrid(grid):
-        model = model_cls(**params, **fixed)
-        model.fit(X_train, y_train)
-        pred = model.predict(X_val)
-        mae = float(np.mean(np.abs(y_val - pred)))
-        if best is None or mae < best["mae"]:
-            best = {"model": model, "params": params, "mae": mae}
-    return best
-
-
-def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
+def train_all_india(force_reload_data: bool = False) -> dict:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    raw = load_raw_dataset()
-    clean = clean_dataset(raw)
-    daily = get_district_daily_series(clean, district, state)
+    all_daily = _load_all_districts_daily(force_reload=force_reload_data)
+    n_districts = all_daily["district"].nunique()
+    logger.info("All-districts daily series: %d districts, %d rows", n_districts, len(all_daily))
 
-    feats = build_features(daily)
-    feats = compute_target(feats)
+    feats = build_features_multi_district(all_daily, impute_as_zero=False)
+    feats = compute_target_multi_district(feats)
 
     splits_raw = _split_by_date(feats)
     logger.info(
-        "Split sizes (calendar days): train=%d val=%d test=%d",
+        "Split sizes (district-days, %s to %s): train=%d val=%d test=%d",
+        ALL_INDIA_SPLIT_DATES.train_start, ALL_INDIA_SPLIT_DATES.test_end,
         len(splits_raw["train"]), len(splits_raw["val"]), len(splits_raw["test"]),
     )
 
@@ -137,7 +115,7 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
         X[name], labeled[name] = preprocessor.transform(part)
         X[name], labeled[name] = _drop_invalid_targets(X[name], labeled[name])
         logger.info(
-            "%s: %d rows with a valid 7-day target (dropped %d with incomplete future rainfall)",
+            "%s: %d rows with a valid 7-day target (dropped %d with incomplete history/future)",
             name, len(X[name]), len(part) - len(X[name]),
         )
 
@@ -146,28 +124,14 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
 
     train_pos_rate = float(y_class["train"].mean())
     logger.info("Train positive (insufficient) rate: %.3f", train_pos_rate)
-    if train_pos_rate <= 0.0 or train_pos_rate >= 1.0:
-        raise DegenerateTargetError(
-            f"Train positive rate is {train_pos_rate:.3f} — this district's "
-            f"{RAINFALL_RISK_THRESHOLD_PERCENTILE:.0f}th-percentile monthly "
-            "threshold has collapsed to a value the 7-day rainfall sum "
-            "never (or always) crosses in the training window, so no "
-            "binary classifier can be fit. This is a real limitation of a "
-            "fixed-percentile threshold in a consistently very dry (or "
-            "very wet) district, not a bug to paper over — consider a "
-            "different RAINFALL_RISK_THRESHOLD_PERCENTILE, a longer/"
-            "different training window, or accepting that this district "
-            "isn't suited to this target definition."
-        )
     scale_pos_weight = (1 - train_pos_rate) / train_pos_rate
 
-    # --- baseline ---------------------------------------------------
+    # --- baseline (district-aware climatology, see ClimatologyBaseline) --
     baseline = ClimatologyBaseline().fit(labeled["train"])
-    baseline_val_proba = baseline.predict_proba(labeled["val"])
     baseline_test_proba = baseline.predict_proba(labeled["test"])
     baseline_test_reg = baseline.predict_rainfall_mm(labeled["test"])
 
-    # --- classifiers: small val-selected grid search -----------------
+    # --- classifiers -------------------------------------------------
     rf_clf_result = _search_classifier(
         RandomForestClassifier, RF_CLASSIFIER_GRID,
         X["train"], y_class["train"], X["val"], y_class["val"],
@@ -185,9 +149,6 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
     chosen_name = "random_forest" if rf_clf_result["auc"] >= xgb_clf_result["auc"] else "xgboost"
     chosen_clf_result = rf_clf_result if chosen_name == "random_forest" else xgb_clf_result
 
-    # calibrate the chosen (already-fit) classifier on the val split.
-    # FrozenEstimator tells CalibratedClassifierCV not to refit the base
-    # model — it only fits the calibration mapping, on val, never on train.
     calibrated_clf = CalibratedClassifierCV(FrozenEstimator(chosen_clf_result["model"]), method="sigmoid")
     calibrated_clf.fit(X["val"], y_class["val"])
 
@@ -209,7 +170,7 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
     chosen_reg_result = rf_reg_result if chosen_reg_name == "random_forest" else xgb_reg_result
     chosen_regressor = chosen_reg_result["model"]
 
-    # --- test evaluation -------------------------------------------
+    # --- test evaluation (overall + a few sample districts) -----------
     model_test_proba = calibrated_clf.predict_proba(X["test"])[:, 1]
     model_test_reg = chosen_regressor.predict(X["test"])
 
@@ -228,20 +189,43 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
         "val_positive_rate": float(y_class["val"].mean()),
         "test_positive_rate": float(y_class["test"].mean()),
         "row_counts": {k: len(v) for k, v in X.items()},
+        "n_districts_trained": n_districts,
     }
 
-    logger.info("TEST classifier vs baseline:")
+    # per-district breakdown on a handful of geographically spread sample
+    # districts — sanity check that the pooled model isn't only good for
+    # whichever districts dominate the training data by row count
+    sample_districts = [d for d in [
+        "Thiruvananthapuram", "Mumbai Suburban", "New Delhi", "Kolkata",
+        "Jaisalmer", "Bengaluru Urban", "Guwahati",
+    ] if d in labeled["test"]["district"].unique()]
+    per_district = {}
+    for d in sample_districts:
+        mask = labeled["test"]["district"] == d
+        if mask.sum() < 5:
+            continue
+        per_district[d] = {
+            "n_test_rows": int(mask.sum()),
+            "classifier": ev.classification_metrics(y_class["test"][mask.values], model_test_proba[mask.values]),
+            "regressor": ev.regression_metrics(y_reg["test"][mask.values], model_test_reg[mask.values]),
+        }
+    results["per_district_sample"] = per_district
+
+    logger.info("TEST classifier vs baseline (pooled, all districts):")
     logger.info("  baseline: %s", results["baseline"])
     logger.info("  model:    %s", results["classifier"])
-    logger.info("TEST regressor vs baseline:")
+    logger.info("TEST regressor vs baseline (pooled):")
     logger.info("  baseline: %s", results["baseline_regression"])
     logger.info("  model:    %s", results["regressor"])
-
-    # --- output dir (per-district, never overwrites another district) --
-    out_dir = local_model_dir(district)
-    plots_dir = out_dir / "plots"
+    for d, r in per_district.items():
+        logger.info(
+            "  [%s] n=%d roc_auc=%.3f mae=%.2f",
+            d, r["n_test_rows"], r["classifier"]["roc_auc"] or float("nan"), r["regressor"]["mae"],
+        )
 
     # --- plots -----------------------------------------------------
+    out_dir = ALL_INDIA_MODEL_DIR
+    plots_dir = out_dir / "plots"
     ev.plot_roc_curves(
         y_class["test"],
         {"baseline (climatology)": baseline_test_proba, f"{chosen_name} (calibrated)": model_test_proba},
@@ -255,7 +239,7 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
     ev.plot_confusion_matrix(
         np.array(results["classifier"]["confusion_matrix"]["matrix"]),
         plots_dir / "confusion_matrix.png",
-        title=f"{chosen_name} — test set",
+        title=f"{chosen_name} — all-India test set",
     )
     base_model_for_importance = chosen_clf_result["model"]
     if hasattr(base_model_for_importance, "feature_importances_"):
@@ -279,47 +263,44 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
     with open(out_dir / "feature_schema.json", "w", encoding="utf-8") as f:
         json.dump(feature_schema, f, indent=2)
 
-    centroid = {
-        "latitude": float(daily["latitude"].iloc[0]),
-        "longitude": float(daily["longitude"].iloc[0]),
-        "elevation": float(daily["elevation"].iloc[0]),
-    }
-
-    metadata_district = daily["district"].iloc[0]
     metadata = {
         "model_version": MODEL_VERSION,
-        "district": metadata_district,
-        "state": daily["state"].iloc[0],
-        **centroid,
+        "scope": "all-india (pooled, multi-district)",
+        "n_districts_trained": n_districts,
+        "districts": sorted(all_daily["district"].unique().tolist()),
         "source_file": RAW_DATA_PATH.name,
         "forecast_horizon_days": 7,
         "classifier_model_name": chosen_name,
         "classifier_params": chosen_clf_result["params"],
-        "classifier_calibration": "sigmoid (Platt), fit on validation split, cv='prefit'",
+        "classifier_calibration": "sigmoid (Platt), fit on validation split, cv='prefit' (FrozenEstimator)",
         "regressor_model_name": chosen_reg_name,
         "regressor_params": chosen_reg_result["params"],
         "rainfall_risk_threshold_percentile": RAINFALL_RISK_THRESHOLD_PERCENTILE,
-        "rainfall_risk_threshold_mm_by_month": {
-            int(month): (None if pd.isna(v) else float(v))
-            for (d, month), v in preprocessor.risk_threshold_table_.items()
-            if d == metadata_district
-        },
-        "climatology_mean_rainfall_mm_by_month": {
-            int(month): (None if pd.isna(row["climatology_mean_rainfall_month"]) else float(row["climatology_mean_rainfall_month"]))
-            for (d, month), row in preprocessor.climatology_table_.iterrows()
-            if d == metadata_district
-        },
-        "train_date_range": [SPLIT_DATES.train_start, SPLIT_DATES.train_end],
-        "val_date_range": [SPLIT_DATES.val_start, SPLIT_DATES.val_end],
-        "test_date_range": [SPLIT_DATES.test_start, SPLIT_DATES.test_end],
+        "train_date_range": [ALL_INDIA_SPLIT_DATES.train_start, ALL_INDIA_SPLIT_DATES.train_end],
+        "val_date_range": [ALL_INDIA_SPLIT_DATES.val_start, ALL_INDIA_SPLIT_DATES.val_end],
+        "test_date_range": [ALL_INDIA_SPLIT_DATES.test_start, ALL_INDIA_SPLIT_DATES.test_end],
+        "date_range_rationale": (
+            "Restricted to 2021-01-01 onward: rainfall-reporting completeness "
+            "has a hard, dataset-wide step change exactly at that date "
+            "(missingness ~87% in Dec 2020 to ~6.5% in Jan 2021, uniformly "
+            "across every district — a data-generation-process artifact, not "
+            "a real gradual station-network rollout). Training only on the "
+            "reliably-reported era avoids depending on an unverified "
+            "imputation assumption for the bulk of the record."
+        ),
         "class_imbalance_handling": (
             "RandomForest: class_weight='balanced'. XGBoost: scale_pos_weight "
-            f"={scale_pos_weight:.3f} (train neg/pos ratio). No resampling/SMOTE "
-            "was used — the positive class is only mildly imbalanced (~"
-            f"{train_pos_rate:.0%} by construction of the monthly tercile "
-            "threshold), and synthetic resampling of lag/rolling features "
-            "derived from a time series risks producing physically "
-            "implausible feature combinations."
+            f"={scale_pos_weight:.3f} (train neg/pos ratio). No resampling/SMOTE."
+        ),
+        "missing_rainfall_handling": (
+            "impute_as_zero=False for this pooled model — rows with an "
+            "incomplete 7-day target window or 30-day feature lookback are "
+            "dropped, not imputed. The Thiruvananthapuram-specific "
+            "zero-imputation justification (missing correlates with warmer/"
+            "drier conditions) was checked across 143 districts and did NOT "
+            "replicate nationally (66 districts same-direction, 77 "
+            "opposite-direction) — so no blanket imputation assumption is "
+            "applied at this scale."
         ),
     }
     with open(out_dir / "model_metadata.json", "w", encoding="utf-8") as f:
@@ -328,23 +309,25 @@ def train(district: str = DEFAULT_DISTRICT, state: str | None = None) -> dict:
     with open(out_dir / "evaluation_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, default=str)
 
-    _register_district_config(metadata["district"], metadata["state"], centroid)
+    _register_all_districts(all_daily)
 
     logger.info("Artifacts saved to %s", out_dir)
     return results
 
 
-def _register_district_config(district: str, state: str, centroid: dict) -> None:
-    """Auto-register this district's coordinates for live Open-Meteo
-    forecasting (src/forecasting/district_registry.py), so training a new
-    district also makes scripts/forecast.py work for it immediately —
-    no manual district_config.json editing needed.
-    """
-    from src.config import DISTRICT_CONFIG_PATH
-
+def _register_all_districts(all_daily: pd.DataFrame) -> None:
+    """Register every trained district's coordinates for live Open-Meteo
+    forecasting in one pass (see src/forecasting/district_registry.py)."""
+    centroids = all_daily.groupby(["district", "state"])[["latitude", "longitude", "elevation"]].mean()
     with open(DISTRICT_CONFIG_PATH, encoding="utf-8") as f:
         registry = json.load(f)
-    registry[district] = {"state": state, **centroid}
+    for (district, state), row in centroids.iterrows():
+        registry[district] = {
+            "state": state,
+            "latitude": float(row["latitude"]),
+            "longitude": float(row["longitude"]),
+            "elevation": float(row["elevation"]),
+        }
     with open(DISTRICT_CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(registry, f, indent=2)
-    logger.info("Registered %s in %s for live forecasting", district, DISTRICT_CONFIG_PATH)
+    logger.info("Registered %d districts in %s for live forecasting", len(centroids), DISTRICT_CONFIG_PATH)

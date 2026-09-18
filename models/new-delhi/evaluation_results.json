@@ -1,0 +1,96 @@
+{
+  "baseline": {
+    "n_samples": 400,
+    "positive_rate": 0.03,
+    "accuracy": 0.97,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.8565292096219932,
+    "pr_auc": 0.10846189808321646,
+    "brier_score": 0.03526464779460171,
+    "confusion_matrix": {
+      "labels": [
+        "sufficient(0)",
+        "insufficient(1)"
+      ],
+      "matrix": [
+        [
+          388,
+          0
+        ],
+        [
+          12,
+          0
+        ]
+      ]
+    },
+    "decision_threshold": 0.5
+  },
+  "classifier": {
+    "n_samples": 400,
+    "positive_rate": 0.03,
+    "accuracy": 0.97,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.8354810996563574,
+    "pr_auc": 0.08732258594964731,
+    "brier_score": 0.03667397540677652,
+    "confusion_matrix": {
+      "labels": [
+        "sufficient(0)",
+        "insufficient(1)"
+      ],
+      "matrix": [
+        [
+          388,
+          0
+        ],
+        [
+          12,
+          0
+        ]
+      ]
+    },
+    "decision_threshold": 0.5
+  },
+  "baseline_regression": {
+    "n_samples": 400,
+    "mae": 16.023188432714235,
+    "rmse": 33.98456169423127,
+    "r2": 0.22836380254569044,
+    "mean_actual": 19.11087500000001,
+    "mean_predicted": 12.374764249639256
+  },
+  "regressor": {
+    "n_samples": 400,
+    "mae": 17.558745027249362,
+    "rmse": 33.754764077846595,
+    "r2": 0.23876385752655493,
+    "mean_actual": 19.11087500000001,
+    "mean_predicted": 13.326044904234793
+  },
+  "chosen_classifier_model": "xgboost",
+  "chosen_classifier_params": {
+    "learning_rate": 0.1,
+    "max_depth": 5,
+    "n_estimators": 200
+  },
+  "chosen_classifier_val_auc": 0.9233710174717369,
+  "chosen_regressor_model": "random_forest",
+  "chosen_regressor_params": {
+    "max_depth": 4,
+    "min_samples_leaf": 10,
+    "n_estimators": 400
+  },
+  "chosen_regressor_val_mae": 16.25151983997022,
+  "train_positive_rate": 0.08212749315604223,
+  "val_positive_rate": 0.04794520547945205,
+  "test_positive_rate": 0.03,
+  "row_counts": {
+    "train": 2557,
+    "val": 730,
+    "test": 400
+  }
+}

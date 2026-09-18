@@ -96,20 +96,28 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def impute_missing_rainfall(df: pd.DataFrame) -> pd.DataFrame:
+def impute_missing_rainfall(
+    df: pd.DataFrame, impute_as_zero: bool = IMPUTE_MISSING_RAINFALL_AS_ZERO
+) -> pd.DataFrame:
     """Record which days had no rainfall reading, then (if configured)
     impute them as 0mm. See config.IMPUTE_MISSING_RAINFALL_AS_ZERO for the
-    evidence behind this. Must run before any lag/rolling/target logic so
-    those all see the same (imputed) series consistently.
+    Thiruvananthapuram-specific evidence this default is based on — it did
+    NOT replicate nationally (checked across 143 districts: temperature-on-
+    missing-days effect flips sign roughly as often as not), so a pooled
+    multi-district model should pass impute_as_zero=False explicitly rather
+    than inherit this single-district-justified default. Must run before
+    any lag/rolling/target logic so those all see the same series.
     """
     df = df.copy()
     df["rainfall_was_missing"] = df["rainfall"].isna().astype(int)
-    if IMPUTE_MISSING_RAINFALL_AS_ZERO:
+    if impute_as_zero:
         df["rainfall"] = df["rainfall"].fillna(0.0)
     return df
 
 
-def add_rainfall_history_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_rainfall_history_features(
+    df: pd.DataFrame, impute_as_zero: bool = IMPUTE_MISSING_RAINFALL_AS_ZERO
+) -> pd.DataFrame:
     """df must be one district's daily series, sorted ascending by date,
     with one row per calendar day (gaps present as NaN rows), already
     passed through impute_missing_rainfall so `rainfall_was_missing`
@@ -117,7 +125,7 @@ def add_rainfall_history_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
     if "rainfall_was_missing" not in df.columns:
-        df = impute_missing_rainfall(df)
+        df = impute_missing_rainfall(df, impute_as_zero=impute_as_zero)
     rain = df["rainfall"]
     was_missing = df["rainfall_was_missing"]
 
@@ -154,13 +162,42 @@ def add_weather_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def build_features(df: pd.DataFrame) -> pd.DataFrame:
+def build_features(
+    df: pd.DataFrame, impute_as_zero: bool = IMPUTE_MISSING_RAINFALL_AS_ZERO
+) -> pd.DataFrame:
     """Run the full leakage-safe feature build on one district's daily series."""
     df = df.sort_values("date_of_record").reset_index(drop=True)
     df = add_temporal_features(df)
-    df = add_rainfall_history_features(df)
+    df = add_rainfall_history_features(df, impute_as_zero=impute_as_zero)
     df = add_weather_features(df)
     return df
+
+
+def build_features_multi_district(
+    df: pd.DataFrame, impute_as_zero: bool = IMPUTE_MISSING_RAINFALL_AS_ZERO
+) -> pd.DataFrame:
+    """Same as build_features, but for a DataFrame covering MULTIPLE
+    districts stacked together (e.g. from
+    src.data.district.get_all_districts_daily_series). Lag/rolling/target
+    logic must never see a window that crosses a district boundary, so
+    each district's rows are processed independently before concatenating
+    back — grouping by row order alone would silently leak one district's
+    tail into another's head.
+    """
+    parts = [
+        build_features(group, impute_as_zero=impute_as_zero)
+        for _, group in df.groupby("district", sort=False)
+    ]
+    return pd.concat(parts, ignore_index=True)
+
+
+def compute_target_multi_district(df: pd.DataFrame) -> pd.DataFrame:
+    """Multi-district equivalent of compute_target — see
+    build_features_multi_district for why grouping is required."""
+    parts = [
+        compute_target(group) for _, group in df.groupby("district", sort=False)
+    ]
+    return pd.concat(parts, ignore_index=True)
 
 
 def _forward_window_sum(series: pd.Series, window: int) -> pd.Series:
@@ -191,45 +228,87 @@ def compute_target(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_monthly_climatology(reference_df: pd.DataFrame) -> pd.DataFrame:
-    """Mean/median daily rainfall by calendar month, from `reference_df`
-    only (pass the TRAIN split). Returns a DataFrame indexed by month.
+    """Mean/median daily rainfall by (district, calendar month), from
+    `reference_df` only (pass the TRAIN split). Grouping by district as
+    well as month is what makes this safe to use for a pooled multi-
+    district model — Kerala's monsoon climatology must never be applied
+    to Rajasthan's rows. For single-district data this reduces to exactly
+    the old month-only behavior, since district is constant.
+
+    Returns a DataFrame indexed by (district, month).
     """
     stats = (
         reference_df.dropna(subset=["rainfall"])
         .assign(month=reference_df["date_of_record"].dt.month)
-        .groupby("month")["rainfall"]
+        .groupby(["district", "month"])["rainfall"]
         .agg(climatology_mean_rainfall_month="mean", climatology_median_rainfall_month="median")
     )
-    return stats.reindex(range(1, 13))
+    return stats
 
 
 def attach_climatology(df: pd.DataFrame, climatology: pd.DataFrame) -> pd.DataFrame:
+    """Left-join climatology onto df by (district, month). Falls back to
+    the district's overall mean/median (across all its months) if a
+    specific (district, month) combo wasn't in the training data, and
+    NaN (caught by the preprocessor's median imputer) only if the
+    district itself is entirely unseen.
+    """
     df = df.copy()
     month = df["date_of_record"].dt.month if "month" not in df else df["month"]
-    df = df.merge(climatology, left_on=month, right_index=True, how="left")
+    key = pd.MultiIndex.from_arrays([df["district"], month])
+    joined = climatology.reindex(key)
+    joined.index = df.index
+
+    district_fallback = climatology.groupby(level="district").mean()
+    for col in ["climatology_mean_rainfall_month", "climatology_median_rainfall_month"]:
+        values = joined[col]
+        missing = values.isna()
+        if missing.any():
+            fb = df.loc[missing, "district"].map(district_fallback[col])
+            values = values.copy()
+            values[missing] = fb.to_numpy()
+        df[col] = values.to_numpy()
     return df
 
 
 def compute_risk_threshold_table(reference_df: pd.DataFrame, percentile: float) -> pd.Series:
-    """Per-month `percentile`-th percentile of rainfall_next_7_days, from
-    `reference_df` only (pass the TRAIN split, after compute_target and
-    with NaN targets already present — they're dropped here).
+    """Per-(district, month) `percentile`-th percentile of
+    rainfall_next_7_days, from `reference_df` only (pass the TRAIN split,
+    after compute_target). Grouping by district too — see
+    compute_monthly_climatology's docstring for why this matters once
+    more than one district is in play.
     """
     valid = reference_df.dropna(subset=["rainfall_next_7_days"])
     month = valid["date_of_record"].dt.month
-    table = valid.groupby(month)["rainfall_next_7_days"].quantile(percentile / 100.0)
-    table = table.reindex(range(1, 13))
-    # a month with too few surviving (non-dropped) train rows can have no
-    # threshold at all — fall back to the overall train percentile rather
-    # than silently NaN-ing out every row in that month downstream.
-    overall = float(valid["rainfall_next_7_days"].quantile(percentile / 100.0))
-    return table.fillna(overall)
+    table = valid.groupby([valid["district"], month])["rainfall_next_7_days"].quantile(
+        percentile / 100.0
+    )
+    table.index.names = ["district", "month"]
+
+    # a (district, month) with too few surviving train rows can have no
+    # threshold at all — fall back to that district's overall percentile,
+    # then to the global percentile, rather than silently NaN-ing out
+    # every row for that combination downstream.
+    district_overall = valid.groupby("district")["rainfall_next_7_days"].quantile(percentile / 100.0)
+    global_overall = float(valid["rainfall_next_7_days"].quantile(percentile / 100.0))
+
+    all_districts = valid["district"].unique()
+    full_index = pd.MultiIndex.from_product([all_districts, range(1, 13)], names=["district", "month"])
+    table = table.reindex(full_index)
+    district_fallback = pd.Series(
+        table.index.get_level_values("district").map(district_overall).to_numpy(),
+        index=table.index,
+    )
+    table = table.fillna(district_fallback)
+    table = table.fillna(global_overall)
+    return table
 
 
 def label_insufficient_rainfall(df: pd.DataFrame, threshold_table: pd.Series) -> pd.DataFrame:
     df = df.copy()
     month = df["date_of_record"].dt.month
-    thresh = month.map(threshold_table)
+    key = pd.MultiIndex.from_arrays([df["district"], month])
+    thresh = pd.Series(threshold_table.reindex(key).to_numpy(), index=df.index)
     df["rainfall_risk_threshold_mm"] = thresh
     df["insufficient_rainfall_next_7_days"] = np.where(
         df["rainfall_next_7_days"].isna(),

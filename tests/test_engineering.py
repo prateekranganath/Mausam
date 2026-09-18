@@ -4,16 +4,21 @@ import pytest
 
 from src.features.engineering import (
     add_rainfall_history_features,
+    attach_climatology,
+    build_features_multi_district,
     compute_monthly_climatology,
     compute_risk_threshold_table,
     compute_target,
+    compute_target_multi_district,
     label_insufficient_rainfall,
 )
 
 
-def _synthetic_daily(n=15, start="2020-01-01"):
+def _synthetic_daily(n=15, start="2020-01-01", district="TestDist"):
     dates = pd.date_range(start, periods=n, freq="D")
-    return pd.DataFrame({"date_of_record": dates, "rainfall": list(range(n))})
+    return pd.DataFrame(
+        {"date_of_record": dates, "rainfall": list(range(n)), "district": district}
+    )
 
 
 def test_target_is_sum_of_next_7_days():
@@ -93,7 +98,7 @@ def test_climatology_and_threshold_fit_only_on_reference_df():
     # labeling `other` with train-derived thresholds must use train's
     # threshold values, not anything derived from `other`
     labeled_other = label_insufficient_rainfall(other, thresh)
-    jan_threshold = thresh.loc[1]
+    jan_threshold = thresh.loc[("TestDist", 1)]
     assert not pd.isna(jan_threshold)
     # sanity: `other`'s rainfall is scaled 100x train's, so with a
     # train-derived threshold almost everything in `other` should be
@@ -103,3 +108,46 @@ def test_climatology_and_threshold_fit_only_on_reference_df():
     valid_jan = jan_rows.dropna(subset=["insufficient_rainfall_next_7_days"])
     if len(valid_jan):
         assert valid_jan["insufficient_rainfall_next_7_days"].mean() < 0.5
+
+
+def test_climatology_is_never_shared_across_districts():
+    # District A: heavy rain every day. District B: bone dry every day.
+    # A's climatology/threshold must never leak into B's rows or vice versa.
+    dates = pd.date_range("2020-01-01", periods=40, freq="D")
+    wet = pd.DataFrame({"date_of_record": dates, "rainfall": 50.0, "district": "Wet"})
+    dry = pd.DataFrame({"date_of_record": dates, "rainfall": 0.0, "district": "Dry"})
+    train = pd.concat([wet, dry], ignore_index=True)
+    train = compute_target_multi_district(train)
+
+    clim = compute_monthly_climatology(train)
+    thresh = compute_risk_threshold_table(train, percentile=33)
+
+    assert clim.loc[("Wet", 1), "climatology_mean_rainfall_month"] == pytest.approx(50.0)
+    assert clim.loc[("Dry", 1), "climatology_mean_rainfall_month"] == pytest.approx(0.0)
+    assert thresh.loc[("Wet", 1)] > thresh.loc[("Dry", 1)]
+
+    labeled = label_insufficient_rainfall(train, thresh)
+    # Dry district's own (0mm) rainfall should never register as
+    # "insufficient" against ITS OWN threshold (which is also ~0) —
+    # if Wet's threshold had leaked in, every Dry row would flag positive.
+    dry_labeled = labeled[(labeled["district"] == "Dry") & labeled["insufficient_rainfall_next_7_days"].notna()]
+    assert dry_labeled["insufficient_rainfall_next_7_days"].mean() < 0.5
+
+
+def test_build_features_multi_district_does_not_leak_across_boundary():
+    # District A ends with 7 wet days; District B starts right after in
+    # the concatenated frame. B's rainfall_sum_last_7 at its first valid
+    # row must not include any of A's rainfall.
+    dates_a = pd.date_range("2020-01-01", periods=35, freq="D")
+    dates_b = pd.date_range("2020-01-01", periods=35, freq="D")
+    weather = {"avg_temp": 25.0, "min_temp": 20.0, "max_temp": 30.0, "wind_speed": 2.0, "air_pressure": 1010.0}
+    a = pd.DataFrame({"date_of_record": dates_a, "rainfall": 100.0, "district": "A", **weather})
+    b = pd.DataFrame({"date_of_record": dates_b, "rainfall": 0.0, "district": "B", **weather})
+    combined = pd.concat([a, b], ignore_index=True)
+
+    out = build_features_multi_district(combined)
+    b_rows = out[out["district"] == "B"].reset_index(drop=True)
+    # B is all zeros, so its 7-day trailing sum must be 0 once defined —
+    # any contamination from A's 100mm days would make this nonzero.
+    valid = b_rows["rainfall_sum_last_7"].dropna()
+    assert (valid == 0).all()
