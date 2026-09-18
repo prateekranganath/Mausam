@@ -1,0 +1,62 @@
+{
+  "model_version": "0.1.0",
+  "district": "Thiruvananthapuram",
+  "state": "KL",
+  "source_file": "india_weather_rainfall_data.xlsx",
+  "forecast_horizon_days": 7,
+  "classifier_model_name": "random_forest",
+  "classifier_params": {
+    "max_depth": 4,
+    "min_samples_leaf": 5,
+    "n_estimators": 200
+  },
+  "classifier_calibration": "sigmoid (Platt), fit on validation split, cv='prefit'",
+  "regressor_model_name": "random_forest",
+  "regressor_params": {
+    "max_depth": 4,
+    "min_samples_leaf": 10,
+    "n_estimators": 200
+  },
+  "rainfall_risk_threshold_percentile": 33.0,
+  "rainfall_risk_threshold_mm_by_month": {
+    "1": 0.0,
+    "2": 0.0,
+    "3": 0.0,
+    "4": 3.294000000000028,
+    "5": 45.15400000000003,
+    "6": 24.833500000000026,
+    "7": 12.149999999999974,
+    "8": 7.683999999999943,
+    "9": 19.79850000000003,
+    "10": 23.46800000000002,
+    "11": 20.950000000000028,
+    "12": 0.24999999999998934
+  },
+  "climatology_mean_rainfall_mm_by_month": {
+    "1": 0.9684331797235023,
+    "2": 0.0797979797979798,
+    "3": 0.8186635944700461,
+    "4": 3.2078571428571427,
+    "5": 12.070276497695852,
+    "6": 10.92142857142857,
+    "7": 4.938018433179724,
+    "8": 6.368663594470046,
+    "9": 7.700238095238095,
+    "10": 8.546543778801842,
+    "11": 6.5773809523809526,
+    "12": 2.5387096774193547
+  },
+  "train_date_range": [
+    "2015-01-01",
+    "2021-12-31"
+  ],
+  "val_date_range": [
+    "2022-01-01",
+    "2023-12-31"
+  ],
+  "test_date_range": [
+    "2024-01-01",
+    "2025-02-10"
+  ],
+  "class_imbalance_handling": "RandomForest: class_weight='balanced'. XGBoost: scale_pos_weight =3.078 (train neg/pos ratio). No resampling/SMOTE was used \u2014 the positive class is only mildly imbalanced (~25% by construction of the monthly tercile threshold), and synthetic resampling of lag/rolling features derived from a time series risks producing physically implausible feature combinations."
+}

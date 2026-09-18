@@ -1,0 +1,24 @@
+# Phase 1 — ML pipeline
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+openpyxl
+pyarrow
+python-dotenv
+matplotlib
+scipy
+
+# Phase 8/11 — Hugging Face packaging & upload
+huggingface_hub
+
+# Phase 14 — Open-Meteo integration
+requests
+
+# Tests
+pytest
+
+# Phase 17 — backend (added when the FastAPI service is built)
+# fastapi
+# uvicorn
