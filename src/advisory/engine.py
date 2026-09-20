@@ -137,6 +137,7 @@ def build_context(
     onset: dict | None = None,
     phase: dict | None = None,
     soil: dict | None = None,
+    today: pd.Timestamp | None = None,
 ) -> dict[str, Any]:
     """Flatten every available signal into the namespace rules match on.
 
@@ -164,7 +165,16 @@ def build_context(
         else None
     )
 
+    # Is today inside this crop's sowing window? None when the crop declares
+    # none or no date is known -- and a None never satisfies a rule condition,
+    # so the sowing-go rules simply do not fire rather than guessing.
+    window = crop.get("sowing_window")
+    window_open = None
+    if window and today is not None:
+        window_open = window["opens_month"] <= today.month <= window["closes_month"]
+
     return {
+        "sowing_window_open": window_open,
         "crop_key": crop["key"],
         "crop_duration_days": crop["duration_days"],
         "stage_name": stage["name"] if stage else None,
@@ -327,7 +337,7 @@ def advise(
         days_since_sowing = int((today - sown).days)
         stage = growth_stage(crop, days_since_sowing)
 
-    context = build_context(crop, stage, forecast=forecast, onset=onset, phase=phase, soil=soil)
+    context = build_context(crop, stage, forecast=forecast, onset=onset, phase=phase, soil=soil, today=today)
     recommendations = evaluate(context, is_sown=sowing_date is not None)
     recommendations, suppression_note = _suppress_degenerate_dry_risk(recommendations, context)
     recommendations = _ensure_not_empty(recommendations, context, stage, past_maturity=(

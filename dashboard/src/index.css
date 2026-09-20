@@ -1,14 +1,14 @@
+/* Global base. Tokens live in theme.css. */
 :root {
-  font-family: Inter, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
-  color: #e2e8f0;
-  background: #020817;
+  color: var(--ink-2);
+  background: var(--canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color-scheme: dark;
 }
 
 * {
@@ -24,23 +24,65 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(45, 212, 191, 0.14), transparent 24%),
-    #020817;
-}
-
-button,
-select {
-  font: inherit;
+    radial-gradient(circle at top left, var(--glow-sky), transparent 28%),
+    radial-gradient(circle at bottom right, var(--glow-teal), transparent 24%),
+    var(--canvas);
+  background-attachment: fixed;
 }
 
 #root {
   min-height: 100vh;
 }
 
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
 h1,
 h2,
 h3,
+h4,
 p {
   margin-top: 0;
+}
+
+/*
+ * Focus. The original had no :focus rule at all, so keyboard users relied on
+ * the browser default outline, which is close to invisible on #020817.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-sky);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* Visible to assistive tech, invisible to the eye. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* scroll-behavior: smooth was previously unconditional. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

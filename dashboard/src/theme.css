@@ -1,0 +1,92 @@
+/*
+ * Design tokens.
+ *
+ * Every value below is one that already existed in the original stylesheets,
+ * written down once instead of retyped as a literal (rgba(148, 163, 184, 0.18)
+ * alone appeared eight times). The look is unchanged; what changes is that it
+ * can now be edited in one place.
+ *
+ * The one deliberate exception is the DATA colours, which differ from the old
+ * chart colours on purpose. They were validated with the dataviz palette
+ * validator against the effective card surface (#0c1426, i.e. slate-900 at 78%
+ * over the navy canvas), and the old pair failed:
+ *
+ *   sky #38bdf8 + violet #a78bfa   FAIL  deuteranopia dE 5.2 (target 8),
+ *                                        and both too light for the dark band
+ *   blue #3987e5 + orange #d95926  PASS  CVD dE 26.8, normal-vision dE 31.8,
+ *                                        contrast >= 3:1, lightness in band
+ *
+ * The sky/violet pair is kept for UI chrome (eyebrows, glows, focus rings),
+ * where it never has to encode identity. Data marks use the validated pair.
+ */
+:root {
+  color-scheme: dark;
+
+  /* ---- canvas & surfaces ---------------------------------------------- */
+  --canvas: #020817;
+  --surface-1: rgba(15, 23, 42, 0.78); /* cards */
+  --surface-1-solid: #0c1426;          /* what --surface-1 renders as; charts are validated against this */
+  --surface-2: rgba(30, 41, 59, 0.48); /* nested / secondary cards */
+  --surface-3: rgba(30, 41, 59, 0.8);  /* inputs, raised controls */
+  --surface-emphasis: linear-gradient(135deg, rgba(14, 116, 144, 0.24), rgba(15, 23, 42, 0.9));
+  --surface-hero: linear-gradient(135deg, rgba(14, 116, 144, 0.24), rgba(17, 24, 39, 0.8));
+  --glow-sky: rgba(56, 189, 248, 0.18);
+  --glow-teal: rgba(45, 212, 191, 0.14);
+
+  /* ---- hairlines -------------------------------------------------------- */
+  --line: rgba(148, 163, 184, 0.18);
+  --line-strong: rgba(148, 163, 184, 0.28);
+  --line-faint: rgba(148, 163, 184, 0.1);
+
+  /* ---- ink (text never wears a data colour) ---------------------------- */
+  --ink-1: #f8fafc; /* 17.6:1 on the card surface */
+  --ink-2: #e2e8f0;
+  --ink-3: #cbd5e1; /* 12.4:1 */
+  --ink-4: #94a3b8; /* 7.2:1 - the floor for any text */
+
+  /* ---- brand accents: UI chrome only, never data marks ----------------- */
+  --accent-sky: #38bdf8;
+  --accent-sky-ink: #7dd3fc;
+  --accent-violet: #c084fc;
+
+  /* ---- data marks (validated; see header) ------------------------------ */
+  --data-rain: #3987e5;   /* rainfall, and chance of rain - the same physical thing */
+  --data-dry: #d95926;    /* break spells: the warm pole of the diverging pair */
+  --data-muted: #64748b;  /* de-emphasised marks; 3.86:1 on the card surface */
+  --data-grid: rgba(148, 163, 184, 0.14);
+  --data-axis: rgba(148, 163, 184, 0.32);
+
+  /* ---- status: reserved for meaning, always paired with an icon + label - */
+  --status-low: #34d399;
+  --status-low-soft: rgba(52, 211, 153, 0.15);
+  --status-moderate: #fbbf24;
+  --status-moderate-soft: rgba(251, 191, 36, 0.15);
+  --status-high: #f87171;
+  --status-high-soft: rgba(248, 113, 113, 0.15);
+  --status-info: #60a5fa;
+  --status-info-soft: rgba(96, 165, 250, 0.15);
+
+  /* ---- shape & rhythm --------------------------------------------------- */
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 18px;
+  --s-5: 24px;
+  --s-6: 32px;
+
+  /* ---- type ------------------------------------------------------------- */
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace;
+  /* The signature pairing: tight negative tracking on large type against
+     wide-tracked uppercase micro-labels. */
+  --tracking-display: -0.05em;
+  --tracking-figure: -0.04em;
+  --tracking-label: 0.12em;
+  --tracking-eyebrow: 0.18em;
+}

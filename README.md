@@ -45,7 +45,7 @@ model.**
 Live forecasting is wired up to [Open-Meteo](https://open-meteo.com)
 (free, no API key) for real recent weather. A **FastAPI backend** serves
 the all-India model plus an optional OpenRouter reasoning layer — see
-[Backend API](#backend-api). The dashboard has not been built yet.
+[Backend API](#backend-api). A React dashboard in [`dashboard/`](dashboard/README.md) displays it.
 
 **Beyond the rainfall model**, the service also answers the wider set of
 questions the problem statement asks about, each measured against external
@@ -58,7 +58,9 @@ ground truth where any exists:
 | ENSO / IOD / MJO | `/climate/context` | Ingested and served as **context**; measured NOT to help as model features |
 | Finer-than-district granularity | `/forecast/point?lat=&lon=` | Grid-downscaled point forecast, explicitly not validated below district level |
 | Crop advisory | `/advisory/crop/{district}` | Built; deterministic rule engine, 9 kharif crops |
-| Risk maps, SMS/WhatsApp, dashboard | — | Not built |
+| Dashboard | `dashboard/` | Built (React + Vite); see [dashboard/README.md](dashboard/README.md) |
+| Telegram alerts | `/alerts/telegram/preview`, `/alerts/telegram/send` | Built; preview works with no credentials, send needs a bot token |
+| Risk maps, WhatsApp/SMS delivery | — | Not built |
 
 All of it runs on free, key-less public data sources (NASA POWER, NOAA
 CPC, NOAA PSL, the IRI Data Library and Open-Meteo).
@@ -510,6 +512,8 @@ this for you). Four names need their state suffix: `Raipur (CT)`,
 | `GET /monsoon/phase/{district}` | — | `monsoon_phase` (`active`/`break`/`normal`/`not_applicable`), `days_in_current_phase`, `rainfall_anomaly_sd`, `recent_30_days`, `caveats` |
 | `GET /crops` | — | `count` and `crops[]` of `{key, display_name, season, duration_days, seasonal_water_mm}` |
 | `GET /advisory/crop/{district}` | `crop` (required), `sowing_date` (optional `YYYY-MM-DD`) | `growth_stage`, `water_balance_mm`, `recommendations[]` with `rule_id` and `triggered_by`, `signals_unavailable`, `disclaimer` |
+| `GET /alerts/telegram/preview` | `district` (required), `crop`, `sowing_date` | The exact message a send would deliver, `telegram_configured`, `sections_included`. **Needs no credentials** |
+| `POST /alerts/telegram/send` | `district` (required), `crop`, `sowing_date` | `sent`, `message`, `message_id`, `error` (Telegram's own words). Recipient is fixed to `TELEGRAM_CHAT_ID`; message text is composed server-side and cannot be supplied; throttled; 503 if unconfigured |
 
 **Route order note:** `/forecast/point` is declared *before*
 `/forecast/{district}` in `routes.py`. Starlette matches in declaration
@@ -902,11 +906,53 @@ Two design details that matter:
   so the risk label carries no information; advice built on it would be
   confidently derived from a meaningless number.
 
+**Sowing windows.** Each crop declares the indicative national months in which
+sowing is sensible, and every "go ahead" sowing rule is gated on the window
+being open. This exists because of a bug found by looking at the rendered
+dashboard: on 20 September the engine told an unsown rice farmer *"Conditions
+are suitable for sowing"*. The rules checked onset and forecast risk but never
+the calendar, so they kept saying "go" long after the kharif window had
+closed. Outside the window the engine now says the window has passed. The
+windows are coarse on purpose (real ones vary by region and variety); they
+exist to stop a plainly wrong answer, not to schedule a farm.
+
 Crops: rice (transplanted and direct-seeded), maize, cotton, groundnut,
 soybean, bajra, ragi and pigeonpea. Water requirements are indicative FAO-56
 ETc figures cross-checked against ICAR seasonal totals — planning figures for
 a rain-fed advisory, not irrigation prescriptions, and every response carries
 that disclaimer plus a pointer to the local KVK.
+
+## Telegram alerts
+
+`GET /alerts/telegram/preview` composes the alert a farmer would receive from
+the same data the panels show: the risk line, the onset and spell status, and
+the crop advice. `POST /alerts/telegram/send` delivers it. Free, no approval
+process, and a working demo needs only a token from @BotFather and a chat id.
+
+```bash
+python Messaging/send_telegram.py --district Bhopal --crop soybean --sowing-date 2026-06-28 --preview
+python Messaging/send_telegram.py --district Bhopal --crop soybean --sowing-date 2026-06-28
+```
+
+Design decisions worth knowing:
+
+- **Preview needs no credentials.** The feature demos fully on a fresh clone;
+  only the final send needs `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+- **The client never supplies the text or the recipient.** The endpoint has no
+  authentication, so one that accepted either would be an open relay for
+  messaging anyone through the bot. Tests assert that caller-supplied
+  `message`/`text`/`chat_id` parameters are ignored. Sends are throttled
+  (default 5 per minute).
+- **A send is never retried.** Every other client in the project retries; a send
+  is not idempotent, and a retry after a timeout can deliver the same drought
+  warning twice, which is worse than not delivering it.
+- **Failures return Telegram's own words** (HTTP 200 with `sent: false`), because
+  "Unauthorized", "chat not found" and "bot was blocked" are different problems.
+- **Plain text, not Markdown.** Four district names contain parentheses
+  (`Raipur (CT)`, `Cuddalore (PY)`), which MarkdownV2 would need escaped.
+- **The honesty rules carry through.** Where the district-month risk threshold is
+  degenerate the message says a dry week is normal rather than printing a
+  meaningless "LOW"; an unconfirmed onset is never worded as settled.
 
 ## Hugging Face packaging (`scripts/push_to_huggingface.py`)
 
@@ -944,7 +990,10 @@ src/
   forecasting/                open_meteo.py, district_registry.py (+ district_config.json), agreement.py
   llm/openrouter.py           structured-output client + number tripwire
   api/                        main.py (app, startup), routes.py, schemas.py, state.py
-tests/                        273 tests, all offline
+  alerts/                     compose.py (pure message composer), telegram.py (sender; never retries)
+Messaging/send_telegram.py    CLI over src/alerts (--district, --crop, --preview)
+dashboard/                    React + Vite front end (see dashboard/README.md)
+tests/                        333 tests, all offline
 ```
 
 ## Testing
@@ -953,7 +1002,7 @@ tests/                        273 tests, all offline
 python -m pytest tests/ -v
 ```
 
-273 tests, all offline (Open-Meteo, OpenRouter and the model are stubbed), so
+333 tests, all offline (Open-Meteo, OpenRouter and the model are stubbed), so
 they need no network or keys and cost nothing to run:
 
 | File | Tests | Covers |
@@ -986,7 +1035,7 @@ they need no network or keys and cost nothing to run:
 - Not validated against independent ground-truth rainfall records beyond
   the dataset's own test split. Not an operational forecast — does not
   claim panchayat-level accuracy.
-- Not yet built: React dashboard, risk maps, SMS/WhatsApp delivery,
+- Not yet built: risk maps, WhatsApp/SMS delivery,
   stored prediction history (so no real backtest against observed rainfall
   yet), and an ensemble with external forecast sources (investigated — no
   second genuinely usable free/public source was found; see git history).

@@ -3,6 +3,7 @@
   "_about": {
     "purpose": "Crop calendars and risk->action rules for the deterministic advisory engine (src/advisory/engine.py). Data, not code: changing advice means editing this file, and every recommendation the engine emits names the rule_id that produced it.",
     "water_requirement_basis": "Stage water requirements are indicative crop evapotranspiration (ETc) figures in mm per 7 days, derived from FAO-56 crop coefficients applied to typical Indian kharif conditions and cross-checked against ICAR package-of-practices seasonal totals. They are planning figures for a rain-fed advisory, NOT irrigation scheduling prescriptions: actual requirement varies with soil type, cultivar duration, sowing date and local evaporative demand.",
+    "sowing_window_basis": "sowing_window gives the indicative national kharif sowing months for each crop (inclusive). Real windows vary by region, variety and irrigation, so they are coarse on purpose: they exist so the engine never calls sowing suitable long after the window has closed, not to schedule a farm.",
     "stage_basis": "Growth stages are calendar days from sowing. Thermal time (growing degree days) would track development more accurately, especially for a late or early season; calendar days are a documented simplification, not an oversight.",
     "disclaimer": "Indicative advisory only. It does not account for soil type, cultivar, local irrigation availability or pest and disease pressure. Farmers should confirm with their local Krishi Vigyan Kendra (KVK) or state agriculture department before acting.",
     "sources": [
@@ -16,6 +17,7 @@
     "rice_transplanted": {
       "display_name": "Rice (transplanted)",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 8},
       "duration_days": 125,
       "seasonal_water_mm": 1100,
       "notes": "Puddled transplanted rice is the most water-demanding kharif crop and the least tolerant of a mid-season break.",
@@ -32,6 +34,7 @@
     "rice_direct_seeded": {
       "display_name": "Rice (direct-seeded)",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 7},
       "duration_days": 115,
       "seasonal_water_mm": 800,
       "notes": "Direct seeding uses materially less water than transplanting and is a standard fallback when onset is late.",
@@ -47,6 +50,7 @@
     "maize": {
       "display_name": "Maize",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 7},
       "duration_days": 105,
       "seasonal_water_mm": 600,
       "notes": "Extremely sensitive to water stress during tasselling and silking; a break then causes poor grain set that later rain cannot repair.",
@@ -61,6 +65,7 @@
     "cotton": {
       "display_name": "Cotton",
       "season": "kharif",
+      "sowing_window": {"opens_month": 5, "closes_month": 7},
       "duration_days": 170,
       "seasonal_water_mm": 800,
       "notes": "Long duration and deep-rooted, so it tolerates short breaks better than cereals, but flowering and boll development are water-critical.",
@@ -75,6 +80,7 @@
     "groundnut": {
       "display_name": "Groundnut",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 7},
       "duration_days": 115,
       "seasonal_water_mm": 550,
       "notes": "Pegging and pod development need moist surface soil specifically; a dry topsoil at pegging suppresses yield even when deeper moisture exists.",
@@ -89,6 +95,7 @@
     "soybean": {
       "display_name": "Soybean",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 7},
       "duration_days": 100,
       "seasonal_water_mm": 500,
       "notes": "Pod filling is the critical window; waterlogging in early establishment is as damaging as drought.",
@@ -103,6 +110,7 @@
     "bajra": {
       "display_name": "Bajra (pearl millet)",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 7},
       "duration_days": 85,
       "seasonal_water_mm": 350,
       "notes": "The most drought-tolerant of the kharif cereals and the standard contingency crop when onset is badly delayed.",
@@ -117,6 +125,7 @@
     "ragi": {
       "display_name": "Ragi (finger millet)",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 8},
       "duration_days": 110,
       "seasonal_water_mm": 400,
       "notes": "Drought-hardy and tolerant of a late sowing; a common substitute for rice where onset has failed.",
@@ -131,6 +140,7 @@
     "pigeonpea": {
       "display_name": "Pigeonpea (tur/arhar)",
       "season": "kharif",
+      "sowing_window": {"opens_month": 6, "closes_month": 7},
       "duration_days": 165,
       "seasonal_water_mm": 650,
       "notes": "Deep-rooted and long duration, so it survives mid-season breaks well, but flowering and pod formation coincide with the post-monsoon withdrawal.",
@@ -157,11 +167,24 @@
       "rationale": "Sowing before a confirmed onset is the single most common cause of a failed first sowing and a forced, costly re-sow."
     },
     {
+      "rule_id": "SOW_WINDOW_CLOSED",
+      "category": "sowing",
+      "severity": "high",
+      "applies_when_unsown": true,
+      "conditions": [
+        {"field": "sowing_window_open", "op": "eq", "value": false},
+        {"field": "onset_status", "op": "in", "value": ["onset_confirmed", "post_onset"]}
+      ],
+      "action": "The usual kharif sowing window for this crop has passed. A crop sown now is likely to run out of monsoon rain before it matures. Check with your local KVK about a short-duration alternative, or plan for the next season.",
+      "rationale": "Sowing later than the crop's window shortens the time the crop has to reach its water-critical stages before the rains withdraw."
+    },
+    {
       "rule_id": "SOW_ONSET_ONLY_LIKELY",
       "category": "sowing",
       "severity": "medium",
       "applies_when_unsown": true,
       "conditions": [
+        {"field": "sowing_window_open", "op": "eq", "value": true},
         {"field": "onset_status", "op": "eq", "value": "onset_likely"}
       ],
       "action": "Rain has arrived but is not yet confirmed to have settled in. Prepare land and seed now, but delay actual sowing a few more days until the spell persists.",
@@ -173,6 +196,7 @@
       "severity": "info",
       "applies_when_unsown": true,
       "conditions": [
+        {"field": "sowing_window_open", "op": "eq", "value": true},
         {"field": "onset_status", "op": "in", "value": ["onset_confirmed", "post_onset"]},
         {"field": "risk_level", "op": "in", "value": ["LOW", "MODERATE"]}
       ],
@@ -185,6 +209,7 @@
       "severity": "high",
       "applies_when_unsown": true,
       "conditions": [
+        {"field": "sowing_window_open", "op": "eq", "value": true},
         {"field": "onset_status", "op": "in", "value": ["onset_confirmed", "post_onset"]},
         {"field": "risk_level", "op": "eq", "value": "HIGH"}
       ],
@@ -197,6 +222,7 @@
       "severity": "high",
       "applies_when_unsown": true,
       "conditions": [
+        {"field": "sowing_window_open", "op": "eq", "value": true},
         {"field": "onset_anomaly_days", "op": "gte", "value": 15},
         {"field": "crop_duration_days", "op": "gte", "value": 120}
       ],
