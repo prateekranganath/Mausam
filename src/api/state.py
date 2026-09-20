@@ -56,11 +56,32 @@ class ServiceState:
     eval_results: Optional[dict[str, Any]] = None
     # (district, as_of_date) -> (unix_ts, advisory, unsupported_numbers)
     advisory_cache: dict = field(default_factory=dict)
+    # Unix timestamps of recent Telegram sends, for the throttle. A list
+    # rather than a counter so the window slides rather than resetting on a
+    # boundary, which would let a burst through every minute.
+    telegram_sends: list = field(default_factory=list)
     # district -> (unix_ts, daily history frame). The monsoon detectors need
     # 11 years of daily data per district; re-reading and re-splicing that on
     # every request would dominate the response time, and the underlying
     # POWER shard only gains a row once a day anyway.
     history_cache: dict = field(default_factory=dict)
+
+    def telegram_send_allowed(self, limit: int, window_seconds: int) -> bool:
+        """Record and authorise a send, or refuse it.
+
+        The alert endpoint has no authentication in front of it, and an
+        unthrottled outbound sender is a good way to get a bot rate-limited
+        or banned by Telegram. Called once per send attempt; expired
+        timestamps are dropped on each call so the list cannot grow.
+        """
+        import time
+
+        now = time.time()
+        self.telegram_sends = [t for t in self.telegram_sends if now - t < window_seconds]
+        if len(self.telegram_sends) >= limit:
+            return False
+        self.telegram_sends.append(now)
+        return True
 
     def district_history(self, cfg) -> Any:
         """Cached daily history for one district, loaded on first use.

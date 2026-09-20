@@ -267,12 +267,16 @@ def _ensure_not_empty(
         )
     else:
         balance = context.get("water_balance_mm")
-        detail = (
-            f" Forecast rainfall covers the crop's requirement for this stage "
-            f"(surplus {balance:.0f}mm over the week)."
-            if balance is not None and balance >= 0
-            else ""
-        )
+        # Only quantify a surplus worth mentioning. A balance of 0.4mm
+        # rounds to "surplus 0mm", which reads like a bug.
+        detail = ""
+        if balance is not None and balance >= 1:
+            detail = (
+                f" Forecast rainfall covers the crop's requirement for this stage "
+                f"(about {balance:.0f}mm more than it needs)."
+            )
+        elif balance is not None and balance >= 0:
+            detail = " Forecast rainfall just covers the crop's requirement for this stage."
         rule_id, action = (
             "STATUS_NO_ACTION_NEEDED",
             "No specific action is indicated this week. Conditions are within the normal range "

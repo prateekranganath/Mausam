@@ -353,3 +353,42 @@ class CropAdvisoryResponse(BaseModel):
     stage_basis: str
     disclaimer: str
     sources: list[str] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------
+# Telegram alerts
+# --------------------------------------------------------------------------
+
+class AlertPreviewResponse(BaseModel):
+    """The exact message a send would deliver.
+
+    Deliberately available with NO bot token configured, so the feature can
+    be demonstrated end to end on a fresh clone -- only the final send needs
+    credentials. `telegram_configured` is what the UI uses to decide whether
+    to enable its Send button, and `configuration_hint` says what is missing.
+    """
+
+    district: str
+    state: str
+    crop: Optional[str] = None
+    message: str = Field(description="Plain text, exactly as it would be sent")
+    characters: int
+    telegram_configured: bool
+    configuration_hint: str
+    sections_included: list[str] = Field(
+        default_factory=list,
+        description="Which data blocks made it into the message; a missing one means that source was unavailable",
+    )
+    note: str
+
+
+class AlertSendResponse(BaseModel):
+    district: str
+    state: str
+    sent: bool
+    message: str = Field(description="The text that was sent, recomposed server-side")
+    message_id: Optional[int] = Field(default=None, description="Telegram's id for the delivered message")
+    error: Optional[str] = Field(
+        default=None, description="Telegram's own description of the failure, verbatim"
+    )
+    note: str

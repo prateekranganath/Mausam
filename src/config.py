@@ -266,6 +266,20 @@ HF_USERNAME = os.getenv("HF_USERNAME", "neollm007")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
 
+# Telegram alert delivery (src/alerts/). Both halves are required before a
+# send is possible: a token alone produces Telegram's unhelpful
+# "chat_id is empty" rather than anything actionable. Neither is needed for
+# GET /alerts/telegram/preview, which composes the message without sending,
+# so the feature demos fully on a clone with no credentials at all.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# Sends are throttled in-process. This is a demo endpoint with no
+# authentication in front of it, and an unthrottled outbound sender is a
+# way to get a bot rate-limited or banned by Telegram.
+TELEGRAM_MAX_SENDS_PER_WINDOW = int(os.getenv("TELEGRAM_MAX_SENDS_PER_WINDOW", "5"))
+TELEGRAM_THROTTLE_WINDOW_SECONDS = int(os.getenv("TELEGRAM_THROTTLE_WINDOW_SECONDS", "60"))
+
 API_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv("API_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")

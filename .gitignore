@@ -1,6 +1,11 @@
 # --- secrets ---------------------------------------------------------------
 # Real keys live here; .env.example (tracked) documents the variables.
 .env
+# ...and every variant. Plain `.env` does not match `.env.bak`, `.env.local`
+# or `.env.save`, so an editor backup or a hand-made copy of a secrets file
+# would sit in the working tree fully committable. Keep `.env.example`.
+.env.*
+!.env.example
 
 # --- python ----------------------------------------------------------------
 __pycache__/

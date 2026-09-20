@@ -19,6 +19,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from src.api.schemas import (
     Agreement,
     AdvisoryResponse,
+    AlertPreviewResponse,
+    AlertSendResponse,
     ClimateContextResponse,
     CropAdvisoryResponse,
     CropsResponse,
@@ -41,8 +43,14 @@ from src.api.schemas import (
 )
 from src.api.state import ServiceState
 from src.advisory import engine as crop_engine
+from src.alerts import telegram
+from src.alerts.compose import compose_alert
 from src.climate import indices as climate
-from src.config import MAX_POINT_DISTANCE_KM
+from src.config import (
+    MAX_POINT_DISTANCE_KM,
+    TELEGRAM_MAX_SENDS_PER_WINDOW,
+    TELEGRAM_THROTTLE_WINDOW_SECONDS,
+)
 from src.data.history import history_provenance, recent_soil_and_dryness
 from src.forecasting.agreement import compute_agreement, lookup_threshold
 from src.forecasting.district_registry import DistrictConfig, get_district_config, list_district_configs
@@ -263,10 +271,6 @@ def forecast_point(
     )
 
 
-# NOTE ON ORDER: this literal route MUST stay above /forecast/{district}.
-# Starlette matches in declaration order, so if the parameterised route
-# comes first it captures "point" as a district name and the endpoint
-# 404s with 'Unknown district'. There is a test pinning this.
 @router.get("/districts/coverage", response_model=DistrictCoverageResponse, tags=["meta"])
 def districts_coverage(request: Request) -> DistrictCoverageResponse:
     """Coverage metadata for selectors, maps, and extension dashboards."""
@@ -278,6 +282,11 @@ def districts_coverage(request: Request) -> DistrictCoverageResponse:
     )
 
 
+# NOTE ON ORDER: every literal route above MUST stay above this one.
+# Starlette matches in declaration order, so if this parameterised route
+# comes first it captures "point" as a district name and /forecast/point
+# 404s with 'Unknown district'. There is a test pinning that case
+# (tests/test_api_monsoon.py::test_point_route_is_not_captured_by_the_district_route).
 @router.get("/forecast/{district}", response_model=ForecastResponse, tags=["forecast"])
 def forecast(district: str, request: Request) -> ForecastResponse:
     """ML rainfall-risk estimate plus Open-Meteo's own forecast and how well
@@ -677,3 +686,157 @@ def crop_advisory(
     result["district"] = cfg.district
     result["state"] = cfg.state
     return CropAdvisoryResponse(**result)
+
+
+# --------------------------------------------------------------------------
+# Telegram alerts
+#
+# Two endpoints rather than one, because a send is irreversible and the
+# operator should be able to read the exact text first. They share one
+# composer so the preview cannot drift from what is delivered.
+#
+# THE CLIENT NEVER SUPPLIES THE MESSAGE TEXT. Both endpoints take a
+# district (and optionally a crop) and compose server-side. Accepting a
+# caller-supplied string would turn an unauthenticated endpoint into a
+# relay for sending arbitrary content through the project's bot.
+# --------------------------------------------------------------------------
+
+def _alert_inputs(
+    svc: ServiceState, cfg: DistrictConfig, crop: Optional[str], sowing_date: Optional[str]
+) -> tuple[dict[str, Any], list[str]]:
+    """Gather everything the composer needs, plus which parts were available.
+
+    Only the forecast is required. Monsoon context and crop advice are
+    best-effort: an alert carrying the rainfall numbers alone is far more
+    useful than a 503 because one upstream source was slow.
+    """
+    forecast_data = _build_forecast(svc, cfg).model_dump()
+    included = ["forecast"]
+
+    onset_result = phase_result = crop_result = None
+    soil: dict[str, Any] = {}
+    try:
+        history = svc.district_history(cfg)
+        if not history.empty:
+            onset_result = onset_module.onset_status(history, cfg.district)
+            phase_result = active_break.current_phase(history, cfg.district)
+            soil = recent_soil_and_dryness(history)
+            included += ["onset", "monsoon_phase"]
+    except Exception as exc:  # noqa: BLE001 - context is optional by design
+        logger.warning("Monsoon context unavailable for %s alert: %s", cfg.district, exc)
+
+    if crop:
+        try:
+            crop_result = crop_engine.advise(
+                crop,
+                sowing_date=sowing_date,
+                forecast=forecast_data,
+                onset=onset_result,
+                phase=phase_result,
+                soil=soil,
+            )
+            included.append("crop_advisory")
+        except crop_engine.CropAdvisoryError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+
+    return (
+        {
+            "forecast": forecast_data,
+            "onset": onset_result,
+            "phase": phase_result,
+            "crop": crop_result,
+        },
+        included,
+    )
+
+
+@router.get("/alerts/telegram/preview", response_model=AlertPreviewResponse, tags=["alerts"])
+def alert_preview(
+    request: Request,
+    district: str = Query(description="District to compose an alert for"),
+    crop: Optional[str] = Query(default=None, description="Optional crop key from GET /crops"),
+    sowing_date: Optional[str] = Query(default=None, description="Optional YYYY-MM-DD"),
+) -> AlertPreviewResponse:
+    """The exact message a send would deliver, without sending it.
+
+    Works with NO Telegram credentials configured. That is deliberate: the
+    whole feature can then be demonstrated on a fresh clone, and nobody
+    sends an alert without first reading it.
+    """
+    svc = _svc(request)
+    cfg = _resolve(svc, district)
+    inputs, included = _alert_inputs(svc, cfg, crop, sowing_date)
+    message = compose_alert(**inputs)
+
+    return AlertPreviewResponse(
+        district=cfg.district,
+        state=cfg.state,
+        crop=crop,
+        message=message,
+        characters=len(message),
+        telegram_configured=telegram.is_configured(),
+        configuration_hint=telegram.configuration_hint(),
+        sections_included=included,
+        note=(
+            "Composed server-side from the same data the forecast endpoints return. "
+            "Sending delivers this text verbatim to the configured chat."
+        ),
+    )
+
+
+@router.post("/alerts/telegram/send", response_model=AlertSendResponse, tags=["alerts"])
+def alert_send(
+    request: Request,
+    district: str = Query(description="District to compose and send an alert for"),
+    crop: Optional[str] = Query(default=None, description="Optional crop key from GET /crops"),
+    sowing_date: Optional[str] = Query(default=None, description="Optional YYYY-MM-DD"),
+) -> AlertSendResponse:
+    """Compose and send the alert to the CONFIGURED chat.
+
+    The recipient is TELEGRAM_CHAT_ID and cannot be overridden through this
+    API. This endpoint has no authentication in front of it (see the
+    README's production-hardening note), and one that accepted an arbitrary
+    chat id would be an open relay: anyone able to reach it could message
+    any Telegram user through this bot.
+
+    Returns 200 with `sent: false` and Telegram's own error description when
+    delivery fails, rather than a 5xx -- the caller needs to know which
+    failure it was (bad token, unknown chat, blocked bot) to fix it.
+    """
+    svc = _svc(request)
+    cfg = _resolve(svc, district)
+
+    if not telegram.is_configured():
+        raise HTTPException(status_code=503, detail=telegram.configuration_hint())
+
+    if not svc.telegram_send_allowed(TELEGRAM_MAX_SENDS_PER_WINDOW, TELEGRAM_THROTTLE_WINDOW_SECONDS):
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Alert send throttled: at most {TELEGRAM_MAX_SENDS_PER_WINDOW} sends per "
+                f"{TELEGRAM_THROTTLE_WINDOW_SECONDS}s. Try again shortly."
+            ),
+        )
+
+    # Recomposed here rather than accepting the previewed text -- see the
+    # section comment above.
+    inputs, _ = _alert_inputs(svc, cfg, crop, sowing_date)
+    message = compose_alert(**inputs)
+
+    try:
+        result = telegram.send_message(message)
+    except telegram.TelegramNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+
+    return AlertSendResponse(
+        district=cfg.district,
+        state=cfg.state,
+        sent=result.sent,
+        message=message,
+        message_id=result.message_id,
+        error=result.error,
+        note=(
+            "Delivered to the chat configured in TELEGRAM_CHAT_ID. The recipient cannot be "
+            "set through this API."
+        ),
+    )
