@@ -23,8 +23,11 @@ from src.api.schemas import (
     CropAdvisoryResponse,
     CropsResponse,
     District,
+    DistrictCoverageResponse,
     DistrictsResponse,
     ForecastResponse,
+    ForecastSeriesPoint,
+    ForecastSeriesResponse,
     HealthResponse,
     HistoricalPoint,
     HistoricalResponse,
@@ -264,12 +267,44 @@ def forecast_point(
 # Starlette matches in declaration order, so if the parameterised route
 # comes first it captures "point" as a district name and the endpoint
 # 404s with 'Unknown district'. There is a test pinning this.
+@router.get("/districts/coverage", response_model=DistrictCoverageResponse, tags=["meta"])
+def districts_coverage(request: Request) -> DistrictCoverageResponse:
+    """Coverage metadata for selectors, maps, and extension dashboards."""
+    svc = _svc(request)
+    return DistrictCoverageResponse(
+        trained_count=len(svc.trained_districts),
+        trained_districts=sorted(svc.trained_districts),
+        excluded_districts=svc.excluded_districts,
+    )
+
+
 @router.get("/forecast/{district}", response_model=ForecastResponse, tags=["forecast"])
 def forecast(district: str, request: Request) -> ForecastResponse:
     """ML rainfall-risk estimate plus Open-Meteo's own forecast and how well
     they agree. No LLM involved, so this is the fast, always-available call."""
     svc = _svc(request)
     return _build_forecast(svc, _resolve(svc, district))
+
+
+@router.get("/forecast/{district}/series", response_model=ForecastSeriesResponse, tags=["forecast"])
+def forecast_series(district: str, request: Request) -> ForecastSeriesResponse:
+    """Chart-ready daily forecast values with explicit units."""
+    svc = _svc(request)
+    data = _build_forecast(svc, _resolve(svc, district))
+    return ForecastSeriesResponse(
+        district=data.district,
+        state=data.state,
+        as_of_date=data.as_of_date,
+        source=data.open_meteo_forecast.source,
+        data=[
+            ForecastSeriesPoint(
+                time=point.time,
+                rainfall_mm=point.precipitation_sum,
+                precipitation_probability_percent=point.precipitation_probability_max,
+            )
+            for point in data.open_meteo_forecast.daily
+        ],
+    )
 
 
 @router.get("/historical/{district}", response_model=HistoricalResponse, tags=["data"])

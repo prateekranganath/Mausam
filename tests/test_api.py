@@ -108,6 +108,13 @@ def test_districts_lists_only_trained_and_filters(client):
     assert client.get("/districts", params={"q": "zzz"}).json()["count"] == 0
 
 
+def test_districts_coverage_returns_trained_and_excluded(client):
+    body = client.get("/districts/coverage").json()
+    assert body["trained_count"] == 2
+    assert body["trained_districts"] == ["Jaisalmer", "Kolkata"]
+    assert body["excluded_districts"] == {}
+
+
 # --- districts without training statistics ---------------------------------------
 
 def _predictor_with_coverage(months_by_district: dict[str, set[int]], all_listed: list[str]):
@@ -167,6 +174,16 @@ def test_forecast_shape_and_agreement(client):
     assert a["ml_implies_insufficient"] is False and a["open_meteo_implies_insufficient"] is False
     assert a["sources_agree"] is True
     assert a["difference_mm"] == pytest.approx(3.46)
+
+
+def test_forecast_series_is_chart_ready(client):
+    body = client.get("/forecast/Kolkata/series").json()
+    assert body["district"] == "Kolkata"
+    assert body["data"][0] == {
+        "time": "2026-09-19",
+        "rainfall_mm": 50.0,
+        "precipitation_probability_percent": 90.0,
+    }
 
 
 def test_forecast_is_case_insensitive(client):

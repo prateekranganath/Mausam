@@ -38,6 +38,26 @@ class DistrictsResponse(BaseModel):
     districts: list[District]
 
 
+class DistrictCoverageResponse(BaseModel):
+    trained_count: int
+    trained_districts: list[str]
+    excluded_districts: dict[str, str]
+
+
+class ForecastSeriesPoint(BaseModel):
+    time: str
+    rainfall_mm: Optional[float] = None
+    precipitation_probability_percent: Optional[float] = None
+
+
+class ForecastSeriesResponse(BaseModel):
+    district: str
+    state: str
+    as_of_date: str
+    source: str
+    data: list[ForecastSeriesPoint]
+
+
 class MlModelOutput(BaseModel):
     """Output of the trained all-India model. An estimate from a statistical
     model, not an official forecast."""
