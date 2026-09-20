@@ -1,0 +1,126 @@
+{
+  "method": "Three arms, identical splits, identical preprocessing, identical hyperparameters (the ones train_all_india selected). Only the feature set varies. Selection on validation ROC-AUC; test metrics reported but not used to choose.",
+  "classifier_params": {
+    "n_estimators": 200,
+    "max_depth": 5,
+    "learning_rate": 0.1
+  },
+  "train_date_range": [
+    "2021-01-01",
+    "2023-06-30"
+  ],
+  "val_date_range": [
+    "2023-07-01",
+    "2024-06-30"
+  ],
+  "test_date_range": [
+    "2024-07-01",
+    "2025-02-10"
+  ],
+  "row_counts": {
+    "train": 271745,
+    "val": 114963,
+    "test": 62376
+  },
+  "n_districts": 316,
+  "seasonal_index_variation_in_training": {
+    "oni": {
+      "train_unique_values": 28,
+      "train_range": [
+        -1.11,
+        0.19
+      ],
+      "val_range": [
+        0.19,
+        1.99
+      ],
+      "val_share_inside_train_range": 0.079,
+      "range_overlap_fraction_of_val": 0.0
+    },
+    "dmi": {
+      "train_unique_values": 30,
+      "train_range": [
+        -0.691,
+        0.414
+      ],
+      "val_range": [
+        0.327,
+        0.946
+      ],
+      "val_share_inside_train_range": 0.158,
+      "range_overlap_fraction_of_val": 0.141
+    },
+    "mjo_amplitude": {
+      "train_unique_values": 911,
+      "train_range": [
+        0.042,
+        4.569
+      ],
+      "val_range": [
+        0.068,
+        2.993
+      ],
+      "val_share_inside_train_range": 1.0,
+      "range_overlap_fraction_of_val": 1.0
+    }
+  },
+  "arms": [
+    {
+      "arm": "baseline",
+      "n_features": 34,
+      "extra_features": [],
+      "val_roc_auc": 0.8142318960700923,
+      "val_pr_auc": 0.5680533738507658,
+      "test_roc_auc": 0.7538655050458634,
+      "test_pr_auc": 0.37917889763719564,
+      "test_brier": 0.19915068042380307,
+      "train_seconds": 1.5,
+      "extra_feature_importance": {}
+    },
+    {
+      "arm": "mjo",
+      "n_features": 37,
+      "extra_features": [
+        "mjo_amplitude",
+        "mjo_phase_sin",
+        "mjo_phase_cos"
+      ],
+      "val_roc_auc": 0.8069500536984365,
+      "val_pr_auc": 0.5498382854823373,
+      "test_roc_auc": 0.7599028775768324,
+      "test_pr_auc": 0.3842025450477313,
+      "test_brier": 0.20080970768757447,
+      "train_seconds": 1.5,
+      "extra_feature_importance": {
+        "mjo_amplitude": 0.01976,
+        "mjo_phase_sin": 0.04734,
+        "mjo_phase_cos": 0.02366
+      }
+    },
+    {
+      "arm": "mjo_enso_iod",
+      "n_features": 39,
+      "extra_features": [
+        "mjo_amplitude",
+        "mjo_phase_sin",
+        "mjo_phase_cos",
+        "oni",
+        "dmi"
+      ],
+      "val_roc_auc": 0.7723688435456559,
+      "val_pr_auc": 0.46879498107556705,
+      "test_roc_auc": 0.7671467942946781,
+      "test_pr_auc": 0.39647970205784105,
+      "test_brier": 0.1597392236110081,
+      "train_seconds": 1.5,
+      "extra_feature_importance": {
+        "mjo_amplitude": 0.02055,
+        "mjo_phase_sin": 0.04675,
+        "mjo_phase_cos": 0.02145,
+        "oni": 0.0331,
+        "dmi": 0.03126
+      }
+    }
+  ],
+  "selected_arm": "baseline"
+}

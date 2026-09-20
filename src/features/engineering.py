@@ -351,3 +351,65 @@ class RainfallFeaturePreprocessor:
             df = label_insufficient_rainfall(df, self.risk_threshold_table_)
         X = df[self.feature_columns].fillna(self.impute_values_)
         return X, df
+
+
+def compute_daily_climatology(
+    reference_df: pd.DataFrame, smooth_days: int = 7, value_column: str = "rainfall"
+) -> pd.DataFrame:
+    """Day-of-year mean and standard deviation of rainfall, per district.
+
+    Used by the active/break spell detector, which needs a standardised
+    anomaly and therefore a per-day SD as well as a mean — something
+    compute_monthly_climatology does not provide, and a monthly mean is
+    too coarse for anyway (early June and late June differ enormously in
+    a monsoon district).
+
+    Smoothed over +/- `smooth_days` because a raw per-calendar-day mean is
+    hopelessly noisy: with ~11 years of record each day-of-year has only
+    ~11 observations, and daily rainfall is among the most skewed
+    variables in meteorology. A +/-7-day window pools ~165 observations per
+    point while staying far narrower than the seasonal cycle it has to
+    resolve.
+
+    The window wraps around the year end, so 1 January borrows from late
+    December rather than being estimated from half a window.
+
+    Takes `reference_df` explicitly, like the other climatology helpers
+    here, so a caller cannot accidentally fit it on data that includes the
+    period being evaluated.
+    """
+    frame = reference_df[["district", "date_of_record", value_column]].copy()
+    frame["date_of_record"] = pd.to_datetime(frame["date_of_record"])
+    # 29 February is folded onto 28 February: it has a quarter of the
+    # samples of any other day, and its own statistics would be noise.
+    day_of_year = frame["date_of_record"].dt.dayofyear
+    is_leap = frame["date_of_record"].dt.is_leap_year
+    frame["doy"] = np.where(is_leap & (day_of_year > 59), day_of_year - 1, day_of_year).clip(1, 365)
+
+    records = []
+    for district, group in frame.groupby("district", sort=False):
+        by_doy = {doy: g[value_column].to_numpy(dtype=float) for doy, g in group.groupby("doy")}
+        for doy in range(1, 366):
+            offsets = [((doy - 1 + d) % 365) + 1 for d in range(-smooth_days, smooth_days + 1)]
+            pooled = np.concatenate([by_doy[o] for o in offsets if o in by_doy]) if by_doy else np.array([])
+            pooled = pooled[~np.isnan(pooled)]
+            records.append(
+                {
+                    "district": district,
+                    "doy": doy,
+                    "climatology_daily_mean": float(np.mean(pooled)) if len(pooled) else np.nan,
+                    # ddof=1: this is a sample of years, not the population.
+                    "climatology_daily_sd": float(np.std(pooled, ddof=1)) if len(pooled) > 1 else np.nan,
+                    "climatology_n_observations": int(len(pooled)),
+                }
+            )
+    return pd.DataFrame.from_records(records).set_index(["district", "doy"])
+
+
+def day_of_year_no_leap(dates: pd.Series) -> pd.Series:
+    """Day-of-year with 29 February folded onto 28 February, matching
+    compute_daily_climatology's index so lookups line up in leap years."""
+    dates = pd.to_datetime(dates)
+    day_of_year = dates.dt.dayofyear
+    shifted = np.where(dates.dt.is_leap_year & (day_of_year > 59), day_of_year - 1, day_of_year)
+    return pd.Series(np.clip(shifted, 1, 365), index=dates.index)

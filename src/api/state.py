@@ -6,6 +6,11 @@ from typing import Any, Optional
 
 from src.ml.predict import RainfallRiskPredictor
 
+# A district's history changes at most once a day (POWER publishes daily,
+# and the Open-Meteo bridge is hourly-cached upstream), so an hour is
+# already conservative.
+HISTORY_CACHE_TTL_SECONDS = 3600
+
 
 def servable_districts(predictor: RainfallRiskPredictor) -> tuple[frozenset[str], dict[str, str]]:
     """(servable, {excluded district: reason}).
@@ -51,3 +56,26 @@ class ServiceState:
     eval_results: Optional[dict[str, Any]] = None
     # (district, as_of_date) -> (unix_ts, advisory, unsupported_numbers)
     advisory_cache: dict = field(default_factory=dict)
+    # district -> (unix_ts, daily history frame). The monsoon detectors need
+    # 11 years of daily data per district; re-reading and re-splicing that on
+    # every request would dominate the response time, and the underlying
+    # POWER shard only gains a row once a day anyway.
+    history_cache: dict = field(default_factory=dict)
+
+    def district_history(self, cfg) -> Any:
+        """Cached daily history for one district, loaded on first use.
+
+        Deliberately lazy rather than loaded at startup: warming all 316
+        districts would mean 316 upstream calls before the service could
+        answer anything, and most deployments touch a handful.
+        """
+        import time
+
+        from src.data.history import district_history
+
+        cached = self.history_cache.get(cfg.district)
+        if cached and time.time() - cached[0] < HISTORY_CACHE_TTL_SECONDS:
+            return cached[1]
+        frame = district_history(cfg)
+        self.history_cache[cfg.district] = (time.time(), frame)
+        return frame

@@ -165,3 +165,171 @@ class AdvisoryResponse(BaseModel):
         "The advisory is LLM-generated commentary over the numeric forecast. "
         "It is not a source of weather data."
     )
+
+
+# --------------------------------------------------------------------------
+# Climate context (ENSO / IOD / MJO)
+# --------------------------------------------------------------------------
+
+class ClimateIndex(BaseModel):
+    """One global climate index's latest PUBLISHED value.
+
+    `as_of` and `publication_lag_days` are not decoration. ONI ran ~81 days
+    behind and DMI ~112 days behind when measured; presenting either as a
+    current reading would overstate its freshness considerably.
+    """
+
+    name: str
+    value: float
+    as_of: str = Field(description="The month or day the value describes, not when it was fetched")
+    phase: str
+    publication_lag_days: int = Field(
+        description="Typical delay between the period a value describes and its publication"
+    )
+    source: str
+
+
+class ClimateContextResponse(BaseModel):
+    enso: ClimateIndex
+    iod: ClimateIndex
+    mjo: ClimateIndex
+    mjo_phase: Optional[int] = Field(default=None, description="MJO octant 1-8, if amplitude is meaningful")
+    note: str
+
+
+# --------------------------------------------------------------------------
+# Monsoon onset and active/break
+# --------------------------------------------------------------------------
+
+class OnsetResponse(BaseModel):
+    """Local rainfall onset. Explicitly NOT an IMD onset declaration -- see
+    `not_imd_criterion`, and the README for the measured ~20-day difference."""
+
+    district: str
+    state: str
+    season: str
+    dominant_season: str
+    as_of_date: str
+    status: Literal[
+        "outside_season", "pre_onset", "onset_likely", "onset_confirmed", "post_onset", "no_onset_detected"
+    ]
+    status_description: str
+    onset_date: Optional[str] = None
+    onset_day_of_year: Optional[int] = None
+    anomaly_days: Optional[int] = Field(
+        default=None, description="Days later (+) or earlier (-) than this district's median onset"
+    )
+    anomaly_label: Optional[str] = None
+    trigger_7day_rainfall_mm: Optional[float] = None
+    trigger_rainy_days: Optional[int] = None
+    persistence_longest_dry_run_days: Optional[int] = None
+    rejected_false_onsets: list[str] = Field(
+        default_factory=list, description="Candidate onsets rejected because the rain did not persist"
+    )
+    climatology: dict[str, Any]
+    data: dict[str, Any] = Field(description="Where the underlying daily record came from")
+    method: str
+    not_imd_criterion: str
+
+
+class MonsoonPhaseDay(BaseModel):
+    date: str
+    rainfall_mm: Optional[float] = None
+    anomaly_sd: Optional[float] = None
+    phase: str
+
+
+class MonsoonPhaseResponse(BaseModel):
+    district: str
+    state: str
+    as_of_date: str
+    monsoon_phase: Literal["active", "break", "normal", "not_applicable"]
+    phase_description: str
+    days_in_current_phase: Optional[int] = None
+    rainfall_anomaly_sd: Optional[float] = None
+    rainfall_mm: Optional[float] = None
+    trailing_7day_mean_mm_per_day: Optional[float] = None
+    climatology_7day_mean_mm_per_day: Optional[float] = None
+    climatology_7day_sd_mm_per_day: Optional[float] = None
+    recent_30_days: list[MonsoonPhaseDay] = Field(default_factory=list)
+    data: dict[str, Any]
+    method: str
+    caveats: str
+
+
+# --------------------------------------------------------------------------
+# Point forecast
+# --------------------------------------------------------------------------
+
+class PointForecastResponse(BaseModel):
+    """A forecast at an arbitrary coordinate.
+
+    Weather comes from Open-Meteo at the exact point, but the climatology
+    and risk threshold are the resolved DISTRICT's, because that is the only
+    level the model was fit at. `caveat` says so, and must be surfaced to
+    anyone reading the numbers."""
+
+    latitude: float
+    longitude: float
+    resolved_district: str
+    state: str
+    distance_km: float = Field(description="From the requested point to the district's station centroid")
+    forecast: ForecastResponse
+    caveat: str
+
+
+# --------------------------------------------------------------------------
+# Crop advisory
+# --------------------------------------------------------------------------
+
+class Crop(BaseModel):
+    key: str
+    display_name: str
+    season: str
+    duration_days: int
+    seasonal_water_mm: int
+    notes: Optional[str] = None
+
+
+class CropsResponse(BaseModel):
+    count: int
+    crops: list[Crop]
+
+
+class CropRecommendation(BaseModel):
+    rule_id: str = Field(description="Identifies the rule in crop_rules.json that produced this")
+    category: str
+    severity: Literal["high", "medium", "info"]
+    action: str
+    rationale: str
+    triggered_by: dict[str, Any] = Field(
+        description="The actual signal values that satisfied the rule, so it can be checked"
+    )
+
+
+class CropAdvisoryResponse(BaseModel):
+    """Deterministic, rule-based crop advice. No LLM is involved in producing
+    it; the /advisory endpoint may separately phrase it."""
+
+    district: str
+    state: str
+    crop: str
+    crop_key: str
+    sowing_date: Optional[str] = None
+    as_of_date: str
+    days_since_sowing: Optional[int] = None
+    growth_stage: Optional[str] = None
+    stage_drought_sensitivity: Optional[str] = None
+    stage_weekly_water_requirement_mm: Optional[float] = None
+    expected_rainfall_next_7_days_mm: Optional[float] = None
+    water_balance_mm: Optional[float] = None
+    past_maturity: bool = False
+    recommendations: list[CropRecommendation] = Field(default_factory=list)
+    signals_used: dict[str, Any] = Field(default_factory=dict)
+    signals_unavailable: list[str] = Field(default_factory=list)
+    suppression_note: Optional[str] = None
+    rules_version: str
+    water_requirement_basis: str
+    stage_basis: str
+    disclaimer: str
+    sources: list[str] = Field(default_factory=list)

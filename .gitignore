@@ -28,10 +28,15 @@ Thumbs.db
 # --- data ------------------------------------------------------------------
 # The raw dataset is large and kept locally (never modified in place).
 Data/india_weather_rainfall_data.xlsx
-# Everything derived from it, plus the Open-Meteo response cache
-# (Data/processed/open_meteo_cache/: forecast_*.json and history_*.json).
-# All regenerable, so none of it is committed. The API no longer needs any
-# local dataset: /historical reads live from Open-Meteo.
+# Everything derived from it, plus every upstream response cache:
+#   open_meteo_cache/     forecast_*.json, history_*.json
+#   power_cache/          one NASA POWER shard per district (the 11-year
+#                         daily backfill; regenerate with
+#                         scripts/build_power_dataset.py, which is resumable)
+#   climate_index_cache/  ONI, DMI and MJO RMM feeds
+# All regenerable, so none of it is committed. The API needs no local
+# dataset: /historical, the monsoon detectors and the climate context all
+# fetch and cache on demand.
 Data/processed/
 
 # --- trained model artifacts -----------------------------------------------

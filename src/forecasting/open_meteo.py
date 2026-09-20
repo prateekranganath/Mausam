@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-import json
 import logging
 import time
 from pathlib import Path
@@ -28,6 +27,8 @@ import pandas as pd
 import requests
 
 from src.config import OPEN_METEO_CACHE_DIR
+from src.utils.dates import IST, today_ist
+from src.utils.http_cache import fetch_json_cached
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +60,12 @@ MAX_HISTORICAL_DAYS = HISTORICAL_WINDOW_BUCKETS[-1]
 
 # All Indian districts are in one timezone, so "yesterday" is well defined
 # without a tz database (zoneinfo needs the tzdata package on Windows).
-_IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+# Kept as a module-level indirection because the tests patch it.
+_IST = IST
 
 
 def _today_ist() -> dt.date:
-    return dt.datetime.now(_IST).date()
+    return today_ist()
 
 
 # Maps Open-Meteo's daily column names onto our trained feature schema's
@@ -94,23 +96,6 @@ def _cache_path(latitude: float, longitude: float, past_days: int, forecast_days
     key = f"{latitude:.4f}_{longitude:.4f}_{past_days}_{forecast_days}"
     digest = hashlib.sha1(key.encode()).hexdigest()[:16]
     return OPEN_METEO_CACHE_DIR / f"forecast_{digest}.json"
-
-
-def _read_cache(path: Path) -> dict | None:
-    if not path.exists():
-        return None
-    age = time.time() - path.stat().st_mtime
-    if age > CACHE_TTL_SECONDS:
-        return None
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _read_stale_cache(path: Path) -> dict | None:
-    if not path.exists():
-        return None
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
 
 
 def fetch_daily_weather(
@@ -178,38 +163,26 @@ def fetch_historical_weather(latitude: float, longitude: float, days: int) -> pd
 def _get_payload(url: str, params: dict, cache_file: Path, label: str) -> dict:
     """GET with a TTL disk cache, retries with backoff, and a stale-cache
     fallback (with a logged warning) if the live call keeps failing. Raises
-    OpenMeteoError only when the call fails AND nothing is cached."""
-    cached = _read_cache(cache_file)
-    if cached is not None:
-        logger.info("Open-Meteo cache hit for %s", label)
-        return cached
+    OpenMeteoError only when the call fails AND nothing is cached.
 
-    last_error: Exception | None = None
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            logger.info("Open-Meteo request %s (attempt %d/%d)", label, attempt, MAX_RETRIES)
-            resp = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
-            resp.raise_for_status()
-            payload = resp.json()
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(payload, f)
-            return payload
-        except (requests.RequestException, ValueError) as exc:
-            last_error = exc
-            logger.warning("Open-Meteo request failed (attempt %d/%d): %s", attempt, MAX_RETRIES, exc)
-            if attempt < MAX_RETRIES:
-                time.sleep(RETRY_BACKOFF_SECONDS * attempt)
-
-    stale = _read_stale_cache(cache_file)
-    if stale is not None:
-        logger.warning(
-            "Open-Meteo unreachable after %d attempts; serving stale cache from %s", MAX_RETRIES, cache_file
-        )
-        return stale
-
-    raise OpenMeteoError(
-        f"Open-Meteo request failed after {MAX_RETRIES} attempts and no cached "
-        f"fallback exists for {label}: {last_error}"
+    The policy itself lives in src/utils/http_cache.py — NASA POWER and the
+    climate-index feeds need exactly the same behaviour. `getter` and `sleep`
+    are passed as closures over this module's own `requests` and `time` so
+    that tests monkeypatching `open_meteo.requests.get` / `open_meteo.time.sleep`
+    keep working; see that module's docstring.
+    """
+    return fetch_json_cached(
+        url=url,
+        params=params,
+        cache_file=cache_file,
+        label=label,
+        getter=lambda u, params, timeout: requests.get(u, params=params, timeout=timeout),
+        sleep=lambda seconds: time.sleep(seconds),
+        error_cls=OpenMeteoError,
+        ttl_seconds=CACHE_TTL_SECONDS,
+        timeout_seconds=REQUEST_TIMEOUT_SECONDS,
+        max_retries=MAX_RETRIES,
+        backoff_seconds=RETRY_BACKOFF_SECONDS,
     )
 
 

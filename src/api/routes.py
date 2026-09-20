@@ -19,6 +19,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from src.api.schemas import (
     Agreement,
     AdvisoryResponse,
+    ClimateContextResponse,
+    CropAdvisoryResponse,
+    CropsResponse,
     District,
     DistrictsResponse,
     ForecastResponse,
@@ -27,14 +30,22 @@ from src.api.schemas import (
     HistoricalResponse,
     MetricsResponse,
     MlModelOutput,
+    MonsoonPhaseResponse,
+    OnsetResponse,
     OpenMeteoDaily,
     OpenMeteoForecast,
+    PointForecastResponse,
 )
 from src.api.state import ServiceState
+from src.advisory import engine as crop_engine
+from src.climate import indices as climate
+from src.config import MAX_POINT_DISTANCE_KM
+from src.data.history import history_provenance, recent_soil_and_dryness
 from src.forecasting.agreement import compute_agreement, lookup_threshold
 from src.forecasting.district_registry import DistrictConfig, get_district_config, list_district_configs
 from src.forecasting.open_meteo import MAX_HISTORICAL_DAYS, fetch_historical_weather
 from src.llm import openrouter
+from src.monsoon import active_break, onset as onset_module
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -156,6 +167,103 @@ def districts(request: Request, q: Optional[str] = Query(default=None, descripti
     return DistrictsResponse(count=len(items), districts=items)
 
 
+# --------------------------------------------------------------------------
+# Point forecast
+# --------------------------------------------------------------------------
+
+# India's bounding box, reused from the dataset cleaner so the API and the
+# training pipeline agree on what counts as in-country.
+_INDIA_LAT = (6.0, 38.0)
+_INDIA_LON = (68.0, 98.0)
+_EARTH_RADIUS_KM = 6371.0
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = p2 - p1
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * _EARTH_RADIUS_KM * math.asin(math.sqrt(a))
+
+
+@router.get("/forecast/point", response_model=PointForecastResponse, tags=["forecast"])
+def forecast_point(
+    request: Request,
+    lat: float = Query(description="Latitude, within India"),
+    lon: float = Query(description="Longitude, within India"),
+) -> PointForecastResponse:
+    """A forecast at an arbitrary coordinate, for finer-than-district use.
+
+    HOW FAR THIS ACTUALLY GOES, stated plainly: weather is pulled from
+    Open-Meteo's grid at the exact point (~2-11km), and latitude, longitude
+    and elevation are already model features, so the inference is genuinely
+    local. But the climatology and the risk threshold are the resolved
+    DISTRICT's, because district means are the only level the model was
+    ever fit at, and nothing here has been validated below district level.
+    It is a grid-downscaled estimate, not a village forecast, and the
+    response says so.
+
+    Points further than MAX_POINT_DISTANCE_KM from any district centroid
+    are refused rather than served by stretching one district's learned
+    statistics across half a state.
+    """
+    svc = _svc(request)
+    if not (_INDIA_LAT[0] <= lat <= _INDIA_LAT[1] and _INDIA_LON[0] <= lon <= _INDIA_LON[1]):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"({lat}, {lon}) is outside India. Expected latitude in {_INDIA_LAT} and "
+                f"longitude in {_INDIA_LON}."
+            ),
+        )
+
+    servable = [c for c in list_district_configs() if c.district in svc.trained_districts]
+    if not servable:
+        raise HTTPException(status_code=503, detail="No servable districts are loaded.")
+
+    nearest = min(servable, key=lambda c: _haversine_km(lat, lon, c.latitude, c.longitude))
+    distance = _haversine_km(lat, lon, nearest.latitude, nearest.longitude)
+    if distance > MAX_POINT_DISTANCE_KM:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Nearest servable district ({nearest.district}) is {distance:.0f}km away, beyond the "
+                f"{MAX_POINT_DISTANCE_KM:.0f}km limit. Its climatology and risk threshold would not "
+                "meaningfully apply to this point."
+            ),
+        )
+
+    # Same district identity and learned statistics, but Open-Meteo pulled
+    # at the requested coordinate rather than the district centroid.
+    point_cfg = DistrictConfig(
+        district=nearest.district,
+        state=nearest.state,
+        latitude=lat,
+        longitude=lon,
+        elevation=nearest.elevation,
+    )
+    forecast_data = _build_forecast(svc, point_cfg)
+
+    return PointForecastResponse(
+        latitude=lat,
+        longitude=lon,
+        resolved_district=nearest.district,
+        state=nearest.state,
+        distance_km=round(distance, 1),
+        forecast=forecast_data,
+        caveat=(
+            "Downscaled by weather grid only. Live weather is from Open-Meteo at this exact "
+            f"coordinate, but the climatology, risk threshold and elevation are {nearest.district} "
+            "district's, and the model was trained on district-mean data. Not validated below "
+            "district level; do not read this as a village- or panchayat-level forecast."
+        ),
+    )
+
+
+# NOTE ON ORDER: this literal route MUST stay above /forecast/{district}.
+# Starlette matches in declaration order, so if the parameterised route
+# comes first it captures "point" as a district name and the endpoint
+# 404s with 'Unknown district'. There is a test pinning this.
 @router.get("/forecast/{district}", response_model=ForecastResponse, tags=["forecast"])
 def forecast(district: str, request: Request) -> ForecastResponse:
     """ML rainfall-risk estimate plus Open-Meteo's own forecast and how well
@@ -284,6 +392,19 @@ def _reliability_context(svc: ServiceState) -> Optional[dict[str, Any]]:
     }
 
 
+def _climate_context_safe() -> Optional[dict[str, Any]]:
+    """Climate indices, or None if the feeds are unreachable.
+
+    Context must never be able to fail a forecast: these are three
+    third-party feeds that exist to add colour, not to gate the numbers.
+    """
+    try:
+        return climate.current_snapshot()
+    except climate.ClimateIndexError as exc:
+        logger.warning("Climate context unavailable: %s", exc)
+        return None
+
+
 def _llm_payload(forecast: ForecastResponse, svc: ServiceState) -> dict[str, Any]:
     agreement = forecast.agreement.model_dump()
     agreement.pop("note", None)
@@ -301,6 +422,18 @@ def _llm_payload(forecast: ForecastResponse, svc: ServiceState) -> dict[str, Any
         "open_meteo_forecast": forecast.open_meteo_forecast.model_dump(),
         "agreement": agreement,
         "model_reliability": _reliability_context(svc),
+        # Seasonal-scale CONTEXT ONLY. These are deliberately not model
+        # inputs (see README: the pooled model's 2.5-year training window
+        # cannot support them), so the prompt must not let them read as
+        # part of the prediction. They go through the payload rather than
+        # into the prompt text because find_unsupported_numbers flags any
+        # figure the model states that is not traceable to this dict.
+        "climate_context": _climate_context_safe(),
+        "climate_context_caveat": (
+            "ENSO and IOD describe the season as a whole and are NOT inputs to the "
+            "7-day model. Treat them as background, never as the basis for a specific "
+            "rainfall number. Note each index's as_of date: several are months old."
+        ),
     }
 
 
@@ -336,3 +469,176 @@ def advisory(district: str, request: Request) -> AdvisoryResponse:
     return AdvisoryResponse(
         forecast=forecast_data, advisory=result, unsupported_numbers=unsupported, llm_model=openrouter.OPENROUTER_MODEL
     )
+
+
+# --------------------------------------------------------------------------
+# Climate context (ENSO / IOD / MJO)
+# --------------------------------------------------------------------------
+
+@router.get("/climate/context", response_model=ClimateContextResponse, tags=["climate"])
+def climate_context() -> ClimateContextResponse:
+    """Current ENSO, IOD and MJO state.
+
+    CONTEXT, NOT PREDICTION. None of these is an input to the rainfall
+    model, and that was measured rather than assumed -- see
+    scripts/run_climate_ablation.py and models/ablation_climate_indices.json.
+
+    ONI and DMI fail structurally: over the pooled model's 2021-01..2023-06
+    training window only 7.9% of validation ONI values and 15.8% of DMI
+    values fall inside the range training ever covered (the 2020-2023 La
+    Nina against the El Nino that followed), so there is nothing for the
+    model to generalise from and validation ROC-AUC drops 0.042. MJO has no
+    such problem -- 100% overlap, as its 30-60 day cycle implies -- but it
+    did not improve validation ROC either. All three are therefore reported
+    here as background and none is a model input.
+
+    Every value carries its own as_of date because these feeds lag badly:
+    measured 2026-09-20, ONI was 81 days behind and DMI 112.
+    """
+    try:
+        snapshot = climate.current_snapshot()
+    except climate.ClimateIndexError as exc:
+        raise HTTPException(status_code=503, detail=f"Climate index feeds unavailable: {exc}") from None
+
+    mjo = dict(snapshot["mjo"])
+    mjo_phase = mjo.pop("mjo_phase", None)
+    return ClimateContextResponse(
+        enso=snapshot["enso"],
+        iod=snapshot["iod"],
+        mjo=mjo,
+        mjo_phase=mjo_phase,
+        note=(
+            "These indices are background context for the season, not inputs to the 7-day "
+            "rainfall model. Check each as_of date: ONI and DMI are typically months old."
+        ),
+    )
+
+
+# --------------------------------------------------------------------------
+# Monsoon onset and active/break
+# --------------------------------------------------------------------------
+
+@router.get("/monsoon/onset/{district}", response_model=OnsetResponse, tags=["monsoon"])
+def monsoon_onset(
+    district: str,
+    request: Request,
+    season: Optional[str] = Query(
+        default=None,
+        description="'southwest' or 'northeast'. Default: whichever delivers more of this district's rain.",
+    ),
+) -> OnsetResponse:
+    """Has the monsoon arrived in this district yet?
+
+    Reports LOCAL rainfall onset, which is not the same thing as an IMD
+    onset declaration and measurably precedes it -- see `not_imd_criterion`
+    in the response. `status` distinguishes `onset_likely` (rain has
+    arrived, persistence not yet verifiable) from `onset_confirmed`; that
+    distinction is the honest part and should be shown to users, not
+    collapsed.
+    """
+    svc = _svc(request)
+    cfg = _resolve(svc, district)
+    if season is not None and season not in onset_module.SEASONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown season '{season}'. Use one of: {sorted(onset_module.SEASONS)}.",
+        )
+
+    history = svc.district_history(cfg)
+    if history.empty:
+        raise HTTPException(status_code=503, detail=f"No daily history available for {cfg.district}.")
+
+    result = onset_module.onset_status(history, cfg.district, season=season)
+    result["state"] = cfg.state
+    result["data"] = history_provenance(history)
+    return OnsetResponse(**result)
+
+
+@router.get("/monsoon/phase/{district}", response_model=MonsoonPhaseResponse, tags=["monsoon"])
+def monsoon_phase(district: str, request: Request) -> MonsoonPhaseResponse:
+    """Is the monsoon currently active or in a break here?
+
+    Only defined for June-September; outside those months the response is
+    `not_applicable` rather than a number, because a standardised anomaly
+    against a near-zero climatological mean is arithmetically valid and
+    physically meaningless.
+    """
+    svc = _svc(request)
+    cfg = _resolve(svc, district)
+
+    history = svc.district_history(cfg)
+    if history.empty:
+        raise HTTPException(status_code=503, detail=f"No daily history available for {cfg.district}.")
+
+    result = active_break.current_phase(history, cfg.district)
+    result["state"] = cfg.state
+    result["data"] = history_provenance(history)
+    return MonsoonPhaseResponse(**result)
+
+
+# --------------------------------------------------------------------------
+# Crop advisory
+# --------------------------------------------------------------------------
+
+@router.get("/crops", response_model=CropsResponse, tags=["advisory"])
+def crops() -> CropsResponse:
+    """Crops the advisory engine has calendars for."""
+    items = crop_engine.list_crops()
+    return CropsResponse(count=len(items), crops=items)
+
+
+@router.get("/advisory/crop/{district}", response_model=CropAdvisoryResponse, tags=["advisory"])
+def crop_advisory(
+    district: str,
+    request: Request,
+    crop: str = Query(description="Crop key from GET /crops, e.g. 'rice_transplanted' or 'maize'"),
+    sowing_date: Optional[str] = Query(
+        default=None,
+        description="YYYY-MM-DD. Omit if not sown yet -- that is what the sowing rules are for.",
+    ),
+) -> CropAdvisoryResponse:
+    """Crop-specific sowing and irrigation advice.
+
+    Fully deterministic: the rules live in src/advisory/crop_rules.json and
+    every recommendation names the rule_id that produced it. No LLM is
+    involved, so this still answers when the free-tier model is down, and
+    the same inputs always give the same advice.
+
+    Combines the rainfall forecast with onset status, active/break phase,
+    soil wetness and the observed dry-day streak. Any signal that cannot be
+    obtained is simply absent, and the rules depending on it do not fire --
+    a missing signal never counts as a satisfied condition.
+    """
+    svc = _svc(request)
+    cfg = _resolve(svc, district)
+
+    forecast_data = _build_forecast(svc, cfg)
+
+    # Monsoon context is best-effort: crop advice premised on the forecast
+    # alone is still worth returning if the history source is down.
+    onset_result = phase_result = None
+    soil: dict[str, Any] = {}
+    try:
+        history = svc.district_history(cfg)
+        if not history.empty:
+            onset_result = onset_module.onset_status(history, cfg.district)
+            phase_result = active_break.current_phase(history, cfg.district)
+            soil = recent_soil_and_dryness(history)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Monsoon context unavailable for %s: %s", cfg.district, exc)
+
+    try:
+        result = crop_engine.advise(
+            crop,
+            sowing_date=sowing_date,
+            forecast=forecast_data.model_dump(),
+            onset=onset_result,
+            phase=phase_result,
+            soil=soil,
+        )
+    except crop_engine.CropAdvisoryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+    result["district"] = cfg.district
+    result["state"] = cfg.state
+    return CropAdvisoryResponse(**result)

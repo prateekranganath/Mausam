@@ -15,6 +15,12 @@ This is a hackathon MVP, not an operational forecasting system — see
 [Open-Meteo](#open-meteo-live-integration) ·
 [Forecast pipeline](#forecast-pipeline-end-to-end) ·
 [Backend API](#backend-api) · [Endpoint reference](#endpoint-reference) ·
+[NASA POWER backfill](#nasa-power-the-long-daily-record) ·
+[Climate indices](#climate-indices-enso-iod-mjo) ·
+[Monsoon onset](#monsoon-onset-detection) ·
+[Active/break spells](#activebreak-spell-detection) ·
+[Point forecasts](#point-forecasts-and-the-granularity-question) ·
+[Crop advisory](#crop-advisory-engine) ·
 [Hugging Face](#hugging-face-packaging-scriptspush_to_huggingfacepy) ·
 [Project structure](#project-structure) · [Testing](#testing) ·
 [Limitations](#known-limitations)
@@ -40,6 +46,22 @@ Live forecasting is wired up to [Open-Meteo](https://open-meteo.com)
 (free, no API key) for real recent weather. A **FastAPI backend** serves
 the all-India model plus an optional OpenRouter reasoning layer — see
 [Backend API](#backend-api). The dashboard has not been built yet.
+
+**Beyond the rainfall model**, the service also answers the wider set of
+questions the problem statement asks about, each measured against external
+ground truth where any exists:
+
+| Capability | Endpoint | Status |
+|---|---|---|
+| Monsoon onset detection | `/monsoon/onset/{district}` | Built; 8.4 days MAE vs IMD normal advance dates |
+| Active/break spell detection | `/monsoon/phase/{district}` | Built; per-district adaptation of Rajeevan et al. (2010) |
+| ENSO / IOD / MJO | `/climate/context` | Ingested and served as **context**; measured NOT to help as model features |
+| Finer-than-district granularity | `/forecast/point?lat=&lon=` | Grid-downscaled point forecast, explicitly not validated below district level |
+| Crop advisory | `/advisory/crop/{district}` | Built; deterministic rule engine, 9 kharif crops |
+| Risk maps, SMS/WhatsApp, dashboard | — | Not built |
+
+All of it runs on free, key-less public data sources (NASA POWER, NOAA
+CPC, NOAA PSL, the IRI Data Library and Open-Meteo).
 
 ## Getting started
 
@@ -146,6 +168,23 @@ python scripts/forecast.py --district "Thiruvananthapuram" --per-district    # p
 python scripts/push_to_huggingface.py --all-india --dry-run      # inspect only
 python scripts/push_to_huggingface.py --all-india                # push Rainfall_Forecast_Mausam
 python scripts/push_to_huggingface.py --district "Thiruvananthapuram"  # push a per-district model
+
+# --- Monsoon / climate data -------------------------------------------
+# Backfill the NASA POWER daily record (resumable; ~316 calls, ~20 min)
+python scripts/build_power_dataset.py
+python scripts/build_power_dataset.py --districts "Thiruvananthapuram,Jaisalmer" --dry-run
+
+# Validate the onset rule against IMD's published dates (run after any
+# change to the onset constants -- this script owns ONSET_TRIGGER_PERCENTILE)
+python scripts/validate_onset.py
+python scripts/validate_onset.py --check kerala   # the documented negative result
+python scripts/validate_onset.py --sweep          # re-derive the percentile
+
+# Is history (NASA POWER) consistent with live serving (Open-Meteo)?
+python scripts/compare_rainfall_products.py
+
+# Do ENSO/IOD/MJO earn a place in the model? (they do not -- see below)
+python scripts/run_climate_ablation.py
 
 # --- Tests ---------------------------------------------------------
 python -m pytest tests/ -v
@@ -450,7 +489,7 @@ unreachable), then shared across requests.
 
 ### Endpoint reference
 
-All six endpoints are `GET` and **take no request body**: parameters go in the
+All endpoints are `GET` and **take no request body**: parameters go in the
 path or query string. In Postman, import `http://127.0.0.1:8000/openapi.json`
 (Import → Link) to generate every request. District names are case-insensitive
 and must be URL-encoded (`Mumbai Suburban` → `Mumbai%20Suburban`; Postman does
@@ -465,6 +504,17 @@ this for you). Four names need their state suffix: `Raipur (CT)`,
 | `GET /historical/{district}` | `days` 1–730 (default 90) | `source`, `requested_days`, `n_points`, `data_start`, `data_end`, `missing_rainfall_days`, `units`, `data[]` of `{date, rainfall, avg_temp, min_temp, max_temp, wind_speed, air_pressure, relative_humidity}` |
 | `GET /model/metrics` | `district` (optional; only 6 sampled districts have per-district metrics: Bengaluru Urban, Jaisalmer, Kolkata, Mumbai Suburban, New Delhi, Thiruvananthapuram) | Test metrics for `classifier`, `baseline`, `regressor`, `baseline_regression`, date ranges, `district_metrics` |
 | `GET /advisory/{district}` | — | `forecast` (same as `/forecast`), `advisory`, `unsupported_numbers`, `llm_model`, `llm_error` |
+| `GET /forecast/point` | `lat`, `lon` (required) | `resolved_district`, `distance_km`, `forecast`, `caveat`. 422 outside India or >150 km from any district centroid |
+| `GET /climate/context` | — | `enso`, `iod`, `mjo`, each with `value`, `as_of`, `phase`, `publication_lag_days`, `source`. **Context, not a model input** |
+| `GET /monsoon/onset/{district}` | `season` (optional): `southwest` or `northeast` | `status`, `onset_date`, `anomaly_days`, `climatology`, `rejected_false_onsets`, `data` (provenance), `not_imd_criterion` |
+| `GET /monsoon/phase/{district}` | — | `monsoon_phase` (`active`/`break`/`normal`/`not_applicable`), `days_in_current_phase`, `rainfall_anomaly_sd`, `recent_30_days`, `caveats` |
+| `GET /crops` | — | `count` and `crops[]` of `{key, display_name, season, duration_days, seasonal_water_mm}` |
+| `GET /advisory/crop/{district}` | `crop` (required), `sowing_date` (optional `YYYY-MM-DD`) | `growth_stage`, `water_balance_mm`, `recommendations[]` with `rule_id` and `triggered_by`, `signals_unavailable`, `disclaimer` |
+
+**Route order note:** `/forecast/point` is declared *before*
+`/forecast/{district}` in `routes.py`. Starlette matches in declaration
+order, so flipping them makes `point` be read as a district name and the
+endpoint 404s. There is a test pinning this.
 
 **Read `rainfall_probability` carefully: despite the name it is the
 probability of *insufficient* rainfall** (that the next 7 days are unusually
@@ -577,6 +627,287 @@ rewrites `district_config.json`) needs a server restart. Handlers are plain
 `def` on purpose — forecasting does blocking I/O, and `async def` would
 freeze the event loop. `API_ALLOWED_ORIGINS` controls CORS.
 
+## NASA POWER: the long daily record
+
+The bundled Excel dataset ends **2025-02-10** and has a hard
+reporting step-change at 2021-01-01. That is survivable for a model
+trained on 2021–2023, but it makes onset and active/break detection
+impossible: both need a long, gap-free daily record that also reaches
+**today**, since detecting the *current* season is the entire point.
+
+So a second source was added. `src/data/power.py` pulls
+[NASA POWER](https://power.larc.nasa.gov/) daily point data for each
+district centroid — free, no API key, no registration.
+
+**Why POWER and not Open-Meteo's archive**, which was already integrated:
+Open-Meteo weights archive calls at roughly `(days/14) × (vars/10)`, so one
+11-year 10-variable district pull costs ~306 weighted calls, and all 316
+districts would be ~96,600 against a 10,000/day free cap — about ten days of
+quota. POWER returns the same span in **one unweighted call**: measured
+2026-09-20, 4,279 days × 10 variables in 2.6 s, ~570 KB, with one fill value.
+
+```
+python scripts/build_power_dataset.py        # ~316 calls, ~20 min, resumable
+```
+
+The run is resumable by design — one JSON shard per district, and a district
+whose shard already reaches the requested end date is skipped without a call.
+
+**Measured result: 0.000% missing rainfall** across 11.7 years, against the
+Excel dataset's 87% → 6.5% step change. Two traps handled explicitly, both
+with tests: `PS` is **kPa, not hPa** (×10, applied only *after* the fill
+value is removed, so `-999` never becomes a plausible `-9990`), and POWER
+runs **~3 days behind** real time, publishing those days as real dates with
+every value filled — which would otherwise read as "no rain".
+
+It also unlocks four variables the Excel data never had: relative humidity,
+solar radiation, and surface and root-zone soil wetness. The crop advisory
+uses soil wetness directly.
+
+### Three products, one quantity — measured, not assumed
+
+History now comes from POWER (MERRA-2, ~50 km) while live forecasts come
+from Open-Meteo (ERA5 archive ~25 km). `scripts/compare_rainfall_products.py`
+quantifies the difference over 20 districts spanning every Indian rainfall
+regime, 730 days:
+
+| | median |
+|---|---|
+| Bias | **−0.02 mm/day** |
+| Correlation | **0.68** |
+| Seasonal-total ratio | **0.98** |
+| Rainy-day agreement | **87.2%** |
+
+Good in aggregate, but **three districts disagree badly** and their onset and
+active/break output should be trusted correspondingly less: **Kamrup**
+(Open-Meteo reads 1.94× POWER), **Kozhikode** (1.41×) and **Ratnagiri**
+(1.40×). The detectors use POWER for the multi-year climatology and
+Open-Meteo only for the final ~3 days, so what matters is agreement on the
+*shape* of a district's rainfall rather than matching mm for mm — but the
+splice is a real discontinuity and every response reports how many days came
+from where.
+
+## Climate indices (ENSO, IOD, MJO)
+
+All three are ingested from free, key-less feeds and served at
+`GET /climate/context`:
+
+| Index | Source | Cadence | Measured lag |
+|---|---|---|---|
+| ONI (ENSO) | NOAA CPC | 3-month seasons, 1950– | **81 days** |
+| DMI (IOD) | NOAA PSL | monthly, 1870– | **112 days** |
+| MJO RMM | IRI Data Library (mirror of Australian BoM) | daily, 1974– | **3 days** |
+
+Two things worth recording about getting these:
+
+- **BoM's own RMM file now returns an anti-scraping block page**, not data.
+  The IRI Data Library mirror works.
+- **IRI does not return dates alongside values**, and its two selection
+  syntaxes disagree about order: `T/last/N/RANGE` is newest-first while
+  `T/(start)/(end)/RANGEEDGES` is oldest-first. Zipping rows against a
+  locally generated date range would have silently *reversed* the entire MJO
+  series. `_verify_rmm_alignment` therefore re-queries the final day on its
+  own and refuses to attach the series if the values disagree.
+
+Publication lag is treated as a **leakage** concern rather than a footnote.
+An ONI value labelled "July" could not be known in July; each index declares
+a lag and the as-of join uses `available_from = date + lag`, so training and
+serving see a value become available at the same point in its life.
+
+### Do they improve the model? Measured: no.
+
+`scripts/run_climate_ablation.py` trains three arms over identical splits,
+identical preprocessing and identical hyperparameters, varying only the
+feature set. The baseline arm reproduces the shipped model exactly
+(val ROC 0.8142, test PR 0.3792), which is what makes the comparison
+trustworthy.
+
+| arm | features | val ROC-AUC | test PR-AUC |
+|---|---|---|---|
+| baseline | 34 | **0.8142** | 0.3792 |
+| + MJO | 37 | 0.8070 | 0.3842 |
+| + MJO + ONI + DMI | 39 | 0.7724 | 0.3965 |
+
+**ONI and DMI fail structurally, not marginally.** Over the pooled model's
+2021-01…2023-06 training window, only **7.9%** of validation ONI values and
+**15.8%** of DMI values fall inside the range training ever covered — train
+ONI spans `[−1.11, 0.19]`, validation spans `[0.19, 1.99]`, which is the
+2020–23 La Niña against the El Niño that followed. A tree can only split on
+values it has seen, so there is nothing to generalise from; the model
+extrapolates off the end of its own feature and validation ROC drops 0.042.
+**More training years would fix this. No amount of tuning will.**
+
+**MJO does not have that problem** — 100% of validation amplitudes fall
+inside the training range, as a 30–60 day cycle implies — but it still did
+not improve validation ROC (−0.0073). This was contrary to expectation; the
+prior written into the ablation script was that MJO *would* help.
+
+Both arms score better on **test**, which is not a reason to ship either:
+selecting on the held-out split is precisely what would stop it being held
+out. So all three indices are served as context and **none is a model
+input**.
+
+## Monsoon onset detection
+
+`GET /monsoon/onset/{district}` — has the monsoon actually arrived here yet?
+
+The rule has two deliberately separate stages: a **trigger** (in a 7-day
+window, ≥5 rainy days totalling more than this district's own 85th-percentile
+7-day rainfall) and a **persistence** check (across the following 10 days, no
+dry run of ≥7 days). Two stages rather than one long window, because a single
+17-day total would let one torrential week hide a following fortnight of
+drought — which is exactly the pre-monsoon false onset the second stage
+exists to reject. A rejected candidate does not end the season's search; the
+scan resumes after it, and the response lists what it rejected.
+
+**The threshold is district-relative, and that was forced by measurement.**
+No single absolute mm cutoff works nationally: sweeping fixed values never
+beat ~15 days MAE, because any value low enough to fire in Jaisalmer fires
+weeks early in Kerala, and any value high enough for Kerala never fires in
+Jaisalmer at all.
+
+### Status is not just a date
+
+Persistence can only ever be evaluated in retrospect, so a live answer has
+to distinguish **`onset_likely`** (rain has arrived, persistence not yet
+verifiable) from **`onset_confirmed`**. Collapsing the two would turn an
+honest "probably" into a false certainty in exactly the situation a farmer
+would act on. The full set: `outside_season` → `pre_onset` → `onset_likely`
+→ `onset_confirmed` → `post_onset`, plus `no_onset_detected`.
+
+Both monsoons are handled. Which one applies is decided from the district's
+own rainfall climatology, not a curated list of states, so the genuinely
+mixed cases (south interior Karnataka, coastal Andhra) come out right.
+
+### Validation: what it achieves, and what it cannot
+
+Run `python scripts/validate_onset.py`. Against **IMD's normal monsoon
+advance dates** across nine districts from Kerala to Rajasthan:
+
+| district | detected | IMD normal | error |
+|---|---|---|---|
+| Thiruvananthapuram | 11 May | 01 Jun | −21 |
+| Kozhikode | 21 May | 01 Jun | −11 |
+| Mumbai Suburban | 17 Jun | 10 Jun | +7 |
+| Kolkata | 28 May | 10 Jun | −13 |
+| Nagpur | 21 Jun | 15 Jun | +6 |
+| Bhopal | 17 Jun | 20 Jun | −3 |
+| Lucknow | 26 Jun | 20 Jun | +6 |
+| New Delhi | 28 Jun | 27 Jun | **+1** |
+| Jaisalmer | 13 Jul | 05 Jul | +8 |
+
+**MAE 8.4 days, bias −2.2 days.** For reference, the standard deviation of
+IMD's own Kerala onset date is ~7 days, so the rule is about as precise as
+the thing it is estimating. It is most accurate over central and northern
+India and runs early on the pre-monsoon-heavy southern and eastern coasts.
+
+**What it cannot do, stated plainly.** It is not IMD's operational onset
+declaration and cannot be. Against IMD's *declared* Kerala onset dates
+2015–2025, a rainfall-only rule fires **~20 days early every single year**
+(mean −21, SD 5.2) — and that holds even for a faithful reconstruction of
+IMD's own **multi-station** rainfall criterion over 10 proxy districts. This
+is not a tuning failure; no threshold fixes it. IMD withholds the
+declaration until the 925 hPa westerlies and OLR criteria are also met, and
+**neither field is obtainable from the free sources here** (checked
+2026-09-20: Open-Meteo's ERA5 archive accepts pressure-level variable names
+but returns all-null, and NASA POWER has no pressure levels at all). So the
+module reports *local rainfall onset* and every response says so.
+
+## Active/break spell detection
+
+`GET /monsoon/phase/{district}` — within the monsoon, is it raining or paused?
+
+The monsoon does not rain steadily from June to September; it alternates
+between **active** spells and **break** spells of near-drought that can last
+a fortnight. A break during flowering does far more damage than the seasonal
+total suggests. Method follows Rajeevan et al. (2010): standardised rainfall
+anomaly against a smoothed day-of-year climatology, ±1 SD sustained for ≥3
+days.
+
+### The bug that looked like working code
+
+The first implementation standardised **daily** rainfall and reported
+**zero break spells in eleven years** while appearing to function
+perfectly. Single-district daily rainfall is so right-skewed that the mean
+sits well above the median, and a **completely rainless day only reaches
+about −0.65 SD**:
+
+| smoothing | skew | min reachable z | % of days ≤ −1 SD |
+|---|---|---|---|
+| 1 day | 3.08 | **−0.68** | **0.0%** |
+| 3 days | 2.17 | −0.88 | 0.0% |
+| 7 days | 1.57 | −1.15 | 12.0% |
+
+(Nagpur, JJAS 2015–2026; Thiruvananthapuram −0.69 and Bhopal −0.64 at 1 day.)
+
+A break was not rare, it was **arithmetically impossible**. The fix is to
+standardise a **7-day trailing mean**, which cuts skew to ~1.6 and makes the
+two sides roughly symmetric (12.0% below −1 SD against 13.2% above). Nagpur
+now shows 28 active and 25 break spells over 11 years. The paper sidesteps
+the same problem differently, by averaging over the whole core zone rather
+than over time; a per-district product cannot do that, and the deviation is
+documented in every response.
+
+**JJAS only.** Outside the monsoon the climatological mean approaches zero
+and a standardised anomaly explodes — 4 mm of December drizzle in Rajasthan
+can score +8 SD. The detector returns `not_applicable` rather than a number
+that is arithmetically valid and physically absurd.
+
+## Point forecasts, and the granularity question
+
+The problem statement asks for village/block/panchayat granularity. **That
+cannot be validated here and is not claimed.** Training data is
+district-mean; nothing below district level has been checked against
+anything.
+
+What *is* honest and useful: Open-Meteo is gridded at ~2–11 km, and latitude,
+longitude and elevation are already model features. So
+`GET /forecast/point?lat=&lon=` pulls weather at the exact coordinate and
+runs the normal inference path — but the climatology and risk threshold are
+the **resolved district's**, because that is the only level the model was
+ever fit at. Every response carries that caveat, and points more than 150 km
+from any district centroid are **refused** (422) rather than served by
+stretching one district's learned statistics across half a state.
+
+## Crop advisory engine
+
+`GET /advisory/crop/{district}?crop=&sowing_date=` — deterministic,
+rule-based sowing and irrigation advice for 9 kharif crops.
+
+**The agronomy is data, not prose, and not the LLM's job.** It would have
+been far less code to extend the existing OpenRouter prompt with "and give
+crop advice". That is deliberately not what happens, because agronomic
+recommendations are the part of this system a farmer would actually act on,
+and they need three properties an LLM cannot provide: **reproducible** (same
+inputs, same advice, every time), **attributable** (every recommendation
+names the `rule_id` in `crop_rules.json` that produced it, and echoes the
+signal values that triggered it), and **available** (advice still returns
+when the free-tier model is down). The LLM's only remaining job is phrasing.
+This is the same separation `routes.py` already applies to the forecast: the
+numbers never depend on the narrative.
+
+Rules combine the rainfall forecast with onset status, active/break phase,
+root-zone soil wetness and the observed dry-day streak. Growth stage comes
+from calendar days since sowing (thermal time would be better — documented
+as a simplification, not an oversight).
+
+Two design details that matter:
+
+- **A missing signal never satisfies a condition**, for any operator
+  including `<`. "We don't know the water balance" must not read as "the
+  water balance is in deficit". Unavailable signals are listed explicitly
+  in every response.
+- **Dry-risk advice is suppressed where the risk threshold is degenerate.**
+  In 265 of 314 districts in January, normal rainfall is already near zero,
+  so the risk label carries no information; advice built on it would be
+  confidently derived from a meaningless number.
+
+Crops: rice (transplanted and direct-seeded), maize, cotton, groundnut,
+soybean, bajra, ragi and pigeonpea. Water requirements are indicative FAO-56
+ETc figures cross-checked against ICAR seasonal totals — planning figures for
+a rain-fed advisory, not irrigation prescriptions, and every response carries
+that disclaimer plus a pointer to the local KVK.
+
 ## Hugging Face packaging (`scripts/push_to_huggingface.py`)
 
 Uploads only: both `.joblib` models, the preprocessor, the climatology
@@ -596,16 +927,24 @@ models/
   all-india/                  pooled model: metadata, eval JSON, model card tracked; .joblib git-ignored
   <district>/                 per-district models (same layout)
   comparison_results.json     output of scripts/compare_models.py
-scripts/                      CLI entry points (train, evaluate, compare, forecast, push, prepare data)
+  ablation_climate_indices.json  output of scripts/run_climate_ablation.py
+scripts/                      CLI entry points (train, evaluate, compare, forecast, push, prepare data,
+                              build_power_dataset, validate_onset, compare_rainfall_products,
+                              run_climate_ablation)
 src/
-  config.py                   paths, split dates, env vars, constants
-  data/                       loader.py, cleaner.py, district.py (raw data → daily district series)
-  features/engineering.py     features, target, leakage-safe preprocessor
+  config.py                   paths, split dates, env vars, constants (every threshold carries its evidence)
+  utils/                      http_cache.py (shared TTL/retry/stale-fallback fetcher), dates.py
+  data/                       loader.py, cleaner.py, district.py (raw data → daily district series),
+                              power.py (NASA POWER backfill), history.py (POWER + Open-Meteo splice)
+  climate/indices.py          ONI, DMI, MJO RMM ingestion + leakage-safe as-of join
+  monsoon/                    onset.py (arrival detection), active_break.py (spell detection)
+  advisory/                   crop_rules.json (the agronomy, as data), engine.py (pure-function evaluator)
+  features/engineering.py     features, target, leakage-safe preprocessor, daily climatology
   ml/                         train.py, train_all_india.py, baseline.py, evaluate.py, predict.py
   forecasting/                open_meteo.py, district_registry.py (+ district_config.json), agreement.py
   llm/openrouter.py           structured-output client + number tripwire
   api/                        main.py (app, startup), routes.py, schemas.py, state.py
-tests/                        104 tests, all offline
+tests/                        273 tests, all offline
 ```
 
 ## Testing
@@ -614,7 +953,7 @@ tests/                        104 tests, all offline
 python -m pytest tests/ -v
 ```
 
-104 tests, all offline (Open-Meteo, OpenRouter and the model are stubbed), so
+273 tests, all offline (Open-Meteo, OpenRouter and the model are stubbed), so
 they need no network or keys and cost nothing to run:
 
 | File | Tests | Covers |
@@ -647,10 +986,33 @@ they need no network or keys and cost nothing to run:
 - Not validated against independent ground-truth rainfall records beyond
   the dataset's own test split. Not an operational forecast — does not
   claim panchayat-level accuracy.
-- Not yet built: React dashboard, stored prediction history (so no real
-  backtest against observed rainfall yet), and an ensemble with external
-  forecast sources (investigated — no second genuinely usable free/public
-  source was found; see git history for the writeup).
+- Not yet built: React dashboard, risk maps, SMS/WhatsApp delivery,
+  stored prediction history (so no real backtest against observed rainfall
+  yet), and an ensemble with external forecast sources (investigated — no
+  second genuinely usable free/public source was found; see git history).
+- **Onset is local rainfall onset, not an IMD declaration**, and runs ~20
+  days ahead of IMD's Kerala announcement every year. The 925 hPa wind and
+  OLR fields that would close the gap are not available from any free
+  source checked. See [Monsoon onset](#monsoon-onset-detection).
+- **ENSO and IOD are not model inputs**, because the 2.5-year training
+  window does not contain the range of values validation and test require
+  (7.9% and 15.8% overlap respectively). This is a data-quantity limit, not
+  a modelling choice, and more training years would change it.
+- **Active/break spells are per-district**, where the published method uses
+  the monsoon core zone as one region, and use a 7-day trailing mean where
+  the paper uses daily values. Both deviations make the signal noisier and
+  slower-responding than the literature's.
+- **History and live serving use different products** (NASA POWER
+  MERRA-2 ~50 km vs Open-Meteo ERA5 ~25 km). Measured median bias is −0.02
+  mm/day with 87% rainy-day agreement, but Kamrup, Kozhikode and Ratnagiri
+  disagree by 1.4–1.9× on totals and their monsoon output is correspondingly
+  less reliable.
+- **`/forecast/point` is grid downscaling, not a village forecast.** The
+  climatology and risk threshold remain the district's, and nothing below
+  district level has been validated against anything.
+- **Crop advisory growth stages are calendar days from sowing**, not thermal
+  time, so a very early or late season will drift. Water requirements are
+  indicative planning figures, not irrigation prescriptions.
 - `/historical` is reanalysis from Open-Meteo, a different product from
   the station dataset the model was trained on; the two won't match exactly.
 - **The API is not production-hardened**: no authentication, no rate

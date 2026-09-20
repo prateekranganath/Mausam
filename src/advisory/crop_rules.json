@@ -1,0 +1,293 @@
+{
+  "version": "1.0.0",
+  "_about": {
+    "purpose": "Crop calendars and risk->action rules for the deterministic advisory engine (src/advisory/engine.py). Data, not code: changing advice means editing this file, and every recommendation the engine emits names the rule_id that produced it.",
+    "water_requirement_basis": "Stage water requirements are indicative crop evapotranspiration (ETc) figures in mm per 7 days, derived from FAO-56 crop coefficients applied to typical Indian kharif conditions and cross-checked against ICAR package-of-practices seasonal totals. They are planning figures for a rain-fed advisory, NOT irrigation scheduling prescriptions: actual requirement varies with soil type, cultivar duration, sowing date and local evaporative demand.",
+    "stage_basis": "Growth stages are calendar days from sowing. Thermal time (growing degree days) would track development more accurately, especially for a late or early season; calendar days are a documented simplification, not an oversight.",
+    "disclaimer": "Indicative advisory only. It does not account for soil type, cultivar, local irrigation availability or pest and disease pressure. Farmers should confirm with their local Krishi Vigyan Kendra (KVK) or state agriculture department before acting.",
+    "sources": [
+      "FAO Irrigation and Drainage Paper 56, Crop Evapotranspiration (crop coefficients and stage lengths)",
+      "ICAR package of practices for kharif cereals, pulses and oilseeds (seasonal water requirement and stage sensitivity)",
+      "IMD/ICAR Agromet Advisory Service bulletins (form and content of stage-wise advisories)"
+    ]
+  },
+
+  "crops": {
+    "rice_transplanted": {
+      "display_name": "Rice (transplanted)",
+      "season": "kharif",
+      "duration_days": 125,
+      "seasonal_water_mm": 1100,
+      "notes": "Puddled transplanted rice is the most water-demanding kharif crop and the least tolerant of a mid-season break.",
+      "stages": [
+        {"name": "nursery", "start_day": 0, "end_day": 21, "weekly_water_mm": 40, "drought_sensitivity": "medium"},
+        {"name": "transplanting_establishment", "start_day": 22, "end_day": 40, "weekly_water_mm": 65, "drought_sensitivity": "high"},
+        {"name": "tillering", "start_day": 41, "end_day": 65, "weekly_water_mm": 60, "drought_sensitivity": "medium"},
+        {"name": "panicle_initiation", "start_day": 66, "end_day": 85, "weekly_water_mm": 65, "drought_sensitivity": "critical"},
+        {"name": "flowering", "start_day": 86, "end_day": 100, "weekly_water_mm": 65, "drought_sensitivity": "critical"},
+        {"name": "grain_filling", "start_day": 101, "end_day": 115, "weekly_water_mm": 45, "drought_sensitivity": "high"},
+        {"name": "maturity", "start_day": 116, "end_day": 125, "weekly_water_mm": 15, "drought_sensitivity": "low"}
+      ]
+    },
+    "rice_direct_seeded": {
+      "display_name": "Rice (direct-seeded)",
+      "season": "kharif",
+      "duration_days": 115,
+      "seasonal_water_mm": 800,
+      "notes": "Direct seeding uses materially less water than transplanting and is a standard fallback when onset is late.",
+      "stages": [
+        {"name": "germination_establishment", "start_day": 0, "end_day": 20, "weekly_water_mm": 35, "drought_sensitivity": "high"},
+        {"name": "tillering", "start_day": 21, "end_day": 50, "weekly_water_mm": 50, "drought_sensitivity": "medium"},
+        {"name": "panicle_initiation", "start_day": 51, "end_day": 75, "weekly_water_mm": 60, "drought_sensitivity": "critical"},
+        {"name": "flowering", "start_day": 76, "end_day": 92, "weekly_water_mm": 60, "drought_sensitivity": "critical"},
+        {"name": "grain_filling", "start_day": 93, "end_day": 107, "weekly_water_mm": 40, "drought_sensitivity": "high"},
+        {"name": "maturity", "start_day": 108, "end_day": 115, "weekly_water_mm": 15, "drought_sensitivity": "low"}
+      ]
+    },
+    "maize": {
+      "display_name": "Maize",
+      "season": "kharif",
+      "duration_days": 105,
+      "seasonal_water_mm": 600,
+      "notes": "Extremely sensitive to water stress during tasselling and silking; a break then causes poor grain set that later rain cannot repair.",
+      "stages": [
+        {"name": "establishment", "start_day": 0, "end_day": 20, "weekly_water_mm": 25, "drought_sensitivity": "medium"},
+        {"name": "vegetative", "start_day": 21, "end_day": 45, "weekly_water_mm": 40, "drought_sensitivity": "medium"},
+        {"name": "tasselling_silking", "start_day": 46, "end_day": 65, "weekly_water_mm": 55, "drought_sensitivity": "critical"},
+        {"name": "grain_filling", "start_day": 66, "end_day": 90, "weekly_water_mm": 45, "drought_sensitivity": "high"},
+        {"name": "maturity", "start_day": 91, "end_day": 105, "weekly_water_mm": 15, "drought_sensitivity": "low"}
+      ]
+    },
+    "cotton": {
+      "display_name": "Cotton",
+      "season": "kharif",
+      "duration_days": 170,
+      "seasonal_water_mm": 800,
+      "notes": "Long duration and deep-rooted, so it tolerates short breaks better than cereals, but flowering and boll development are water-critical.",
+      "stages": [
+        {"name": "establishment", "start_day": 0, "end_day": 30, "weekly_water_mm": 25, "drought_sensitivity": "medium"},
+        {"name": "vegetative", "start_day": 31, "end_day": 65, "weekly_water_mm": 35, "drought_sensitivity": "low"},
+        {"name": "squaring_flowering", "start_day": 66, "end_day": 110, "weekly_water_mm": 50, "drought_sensitivity": "critical"},
+        {"name": "boll_development", "start_day": 111, "end_day": 145, "weekly_water_mm": 45, "drought_sensitivity": "high"},
+        {"name": "boll_opening", "start_day": 146, "end_day": 170, "weekly_water_mm": 15, "drought_sensitivity": "low"}
+      ]
+    },
+    "groundnut": {
+      "display_name": "Groundnut",
+      "season": "kharif",
+      "duration_days": 115,
+      "seasonal_water_mm": 550,
+      "notes": "Pegging and pod development need moist surface soil specifically; a dry topsoil at pegging suppresses yield even when deeper moisture exists.",
+      "stages": [
+        {"name": "establishment", "start_day": 0, "end_day": 25, "weekly_water_mm": 25, "drought_sensitivity": "medium"},
+        {"name": "vegetative", "start_day": 26, "end_day": 50, "weekly_water_mm": 35, "drought_sensitivity": "low"},
+        {"name": "flowering_pegging", "start_day": 51, "end_day": 80, "weekly_water_mm": 45, "drought_sensitivity": "critical"},
+        {"name": "pod_development", "start_day": 81, "end_day": 105, "weekly_water_mm": 40, "drought_sensitivity": "high"},
+        {"name": "maturity", "start_day": 106, "end_day": 115, "weekly_water_mm": 12, "drought_sensitivity": "low"}
+      ]
+    },
+    "soybean": {
+      "display_name": "Soybean",
+      "season": "kharif",
+      "duration_days": 100,
+      "seasonal_water_mm": 500,
+      "notes": "Pod filling is the critical window; waterlogging in early establishment is as damaging as drought.",
+      "stages": [
+        {"name": "establishment", "start_day": 0, "end_day": 20, "weekly_water_mm": 25, "drought_sensitivity": "medium"},
+        {"name": "vegetative", "start_day": 21, "end_day": 45, "weekly_water_mm": 35, "drought_sensitivity": "low"},
+        {"name": "flowering", "start_day": 46, "end_day": 65, "weekly_water_mm": 45, "drought_sensitivity": "critical"},
+        {"name": "pod_filling", "start_day": 66, "end_day": 88, "weekly_water_mm": 45, "drought_sensitivity": "critical"},
+        {"name": "maturity", "start_day": 89, "end_day": 100, "weekly_water_mm": 12, "drought_sensitivity": "low"}
+      ]
+    },
+    "bajra": {
+      "display_name": "Bajra (pearl millet)",
+      "season": "kharif",
+      "duration_days": 85,
+      "seasonal_water_mm": 350,
+      "notes": "The most drought-tolerant of the kharif cereals and the standard contingency crop when onset is badly delayed.",
+      "stages": [
+        {"name": "establishment", "start_day": 0, "end_day": 18, "weekly_water_mm": 18, "drought_sensitivity": "medium"},
+        {"name": "vegetative", "start_day": 19, "end_day": 40, "weekly_water_mm": 28, "drought_sensitivity": "low"},
+        {"name": "flowering", "start_day": 41, "end_day": 58, "weekly_water_mm": 35, "drought_sensitivity": "high"},
+        {"name": "grain_filling", "start_day": 59, "end_day": 75, "weekly_water_mm": 28, "drought_sensitivity": "medium"},
+        {"name": "maturity", "start_day": 76, "end_day": 85, "weekly_water_mm": 10, "drought_sensitivity": "low"}
+      ]
+    },
+    "ragi": {
+      "display_name": "Ragi (finger millet)",
+      "season": "kharif",
+      "duration_days": 110,
+      "seasonal_water_mm": 400,
+      "notes": "Drought-hardy and tolerant of a late sowing; a common substitute for rice where onset has failed.",
+      "stages": [
+        {"name": "nursery_establishment", "start_day": 0, "end_day": 25, "weekly_water_mm": 22, "drought_sensitivity": "medium"},
+        {"name": "tillering", "start_day": 26, "end_day": 55, "weekly_water_mm": 30, "drought_sensitivity": "low"},
+        {"name": "flowering", "start_day": 56, "end_day": 80, "weekly_water_mm": 38, "drought_sensitivity": "high"},
+        {"name": "grain_filling", "start_day": 81, "end_day": 100, "weekly_water_mm": 28, "drought_sensitivity": "medium"},
+        {"name": "maturity", "start_day": 101, "end_day": 110, "weekly_water_mm": 10, "drought_sensitivity": "low"}
+      ]
+    },
+    "pigeonpea": {
+      "display_name": "Pigeonpea (tur/arhar)",
+      "season": "kharif",
+      "duration_days": 165,
+      "seasonal_water_mm": 650,
+      "notes": "Deep-rooted and long duration, so it survives mid-season breaks well, but flowering and pod formation coincide with the post-monsoon withdrawal.",
+      "stages": [
+        {"name": "establishment", "start_day": 0, "end_day": 30, "weekly_water_mm": 22, "drought_sensitivity": "medium"},
+        {"name": "vegetative", "start_day": 31, "end_day": 80, "weekly_water_mm": 30, "drought_sensitivity": "low"},
+        {"name": "flowering", "start_day": 81, "end_day": 120, "weekly_water_mm": 40, "drought_sensitivity": "critical"},
+        {"name": "pod_development", "start_day": 121, "end_day": 150, "weekly_water_mm": 35, "drought_sensitivity": "high"},
+        {"name": "maturity", "start_day": 151, "end_day": 165, "weekly_water_mm": 12, "drought_sensitivity": "low"}
+      ]
+    }
+  },
+
+  "rules": [
+    {
+      "rule_id": "SOW_WAIT_FOR_ONSET",
+      "category": "sowing",
+      "severity": "high",
+      "applies_when_unsown": true,
+      "conditions": [
+        {"field": "onset_status", "op": "in", "value": ["pre_onset", "outside_season"]}
+      ],
+      "action": "Hold off sowing. The monsoon has not yet arrived in this district, and sowing into pre-monsoon showers risks germination failure if a dry spell follows.",
+      "rationale": "Sowing before a confirmed onset is the single most common cause of a failed first sowing and a forced, costly re-sow."
+    },
+    {
+      "rule_id": "SOW_ONSET_ONLY_LIKELY",
+      "category": "sowing",
+      "severity": "medium",
+      "applies_when_unsown": true,
+      "conditions": [
+        {"field": "onset_status", "op": "eq", "value": "onset_likely"}
+      ],
+      "action": "Rain has arrived but is not yet confirmed to have settled in. Prepare land and seed now, but delay actual sowing a few more days until the spell persists.",
+      "rationale": "The persistence check is still incomplete, so this could yet prove to be a false onset."
+    },
+    {
+      "rule_id": "SOW_GO_AHEAD",
+      "category": "sowing",
+      "severity": "info",
+      "applies_when_unsown": true,
+      "conditions": [
+        {"field": "onset_status", "op": "in", "value": ["onset_confirmed", "post_onset"]},
+        {"field": "risk_level", "op": "in", "value": ["LOW", "MODERATE"]}
+      ],
+      "action": "Conditions are suitable for sowing. The monsoon has established here and no unusually dry week is forecast.",
+      "rationale": "Onset is confirmed and the 7-day rainfall outlook is not flagged as unusually dry."
+    },
+    {
+      "rule_id": "SOW_DELAY_HIGH_DRY_RISK",
+      "category": "sowing",
+      "severity": "high",
+      "applies_when_unsown": true,
+      "conditions": [
+        {"field": "onset_status", "op": "in", "value": ["onset_confirmed", "post_onset"]},
+        {"field": "risk_level", "op": "eq", "value": "HIGH"}
+      ],
+      "action": "Delay sowing by about a week if you can. The coming week is forecast to be unusually dry for this district and season, which puts germination at risk.",
+      "rationale": "High modelled probability that the next 7 days fall below this district-month's lower-tercile rainfall."
+    },
+    {
+      "rule_id": "SOW_SWITCH_TO_SHORT_DURATION",
+      "category": "sowing",
+      "severity": "high",
+      "applies_when_unsown": true,
+      "conditions": [
+        {"field": "onset_anomaly_days", "op": "gte", "value": 15},
+        {"field": "crop_duration_days", "op": "gte", "value": 120}
+      ],
+      "action": "Onset is well behind this district's normal date. Consider a shorter-duration crop or variety (bajra, ragi or a short-duration pulse) rather than the long-duration crop selected, so the crop can still mature before the monsoon withdraws.",
+      "rationale": "A long-duration crop sown more than a fortnight late frequently reaches its critical flowering stage after the rains have withdrawn."
+    },
+    {
+      "rule_id": "IRRIGATE_CRITICAL_STAGE_DEFICIT",
+      "category": "irrigation",
+      "severity": "high",
+      "conditions": [
+        {"field": "stage_drought_sensitivity", "op": "in", "value": ["critical"]},
+        {"field": "water_balance_mm", "op": "lt", "value": 0}
+      ],
+      "action": "Irrigate if at all possible. The crop is at its most drought-sensitive stage and forecast rainfall falls short of its water requirement for the coming week.",
+      "rationale": "Water stress at a critical stage causes yield loss that later rainfall cannot recover."
+    },
+    {
+      "rule_id": "IRRIGATE_HIGH_STAGE_DEFICIT",
+      "category": "irrigation",
+      "severity": "medium",
+      "conditions": [
+        {"field": "stage_drought_sensitivity", "op": "in", "value": ["high"]},
+        {"field": "water_balance_mm", "op": "lt", "value": 0}
+      ],
+      "action": "Plan a supplementary irrigation this week if water is available. Forecast rainfall is below the crop's requirement at a drought-sensitive stage.",
+      "rationale": "A moderate deficit at a sensitive stage is worth correcting where irrigation exists."
+    },
+    {
+      "rule_id": "IRRIGATE_DRY_ROOT_ZONE",
+      "category": "irrigation",
+      "severity": "high",
+      "conditions": [
+        {"field": "soil_wetness_root_zone", "op": "lt", "value": 0.3},
+        {"field": "water_balance_mm", "op": "lt", "value": 0}
+      ],
+      "action": "Root-zone soil moisture is already low and the coming week is not forecast to replenish it. Irrigate, or apply mulch to conserve what moisture remains.",
+      "rationale": "Soil moisture answers what rainfall alone cannot: whether there is still a reserve to draw on."
+    },
+    {
+      "rule_id": "CONSERVE_BREAK_SPELL",
+      "category": "water_management",
+      "severity": "high",
+      "conditions": [
+        {"field": "monsoon_phase", "op": "eq", "value": "break"}
+      ],
+      "action": "The monsoon is in a break spell here. Conserve soil moisture now: mulch, weed to remove competition, and avoid any operation that dries the surface. Hold back top-dressing of nitrogen until the rains resume.",
+      "rationale": "Break spells routinely last one to two weeks, and fertiliser applied into dry soil is both wasted and a scorch risk."
+    },
+    {
+      "rule_id": "DRAINAGE_ACTIVE_SPELL",
+      "category": "water_management",
+      "severity": "medium",
+      "conditions": [
+        {"field": "monsoon_phase", "op": "eq", "value": "active"}
+      ],
+      "action": "The monsoon is in an active spell. Check field drainage and clear channels; for non-rice crops, standing water for more than two or three days will damage roots.",
+      "rationale": "During active spells the binding risk is waterlogging, not drought."
+    },
+    {
+      "rule_id": "DRY_SPELL_PROLONGED",
+      "category": "water_management",
+      "severity": "high",
+      "conditions": [
+        {"field": "consecutive_dry_days", "op": "gte", "value": 10}
+      ],
+      "action": "A prolonged dry spell is under way. Prioritise any available irrigation toward the most drought-sensitive fields, and mulch to cut evaporation.",
+      "rationale": "Ten or more consecutive days under 2.5mm indicates a genuine dry spell rather than ordinary variability."
+    },
+    {
+      "rule_id": "NUTRIENT_APPLY_BEFORE_RAIN",
+      "category": "nutrient",
+      "severity": "info",
+      "conditions": [
+        {"field": "risk_level", "op": "eq", "value": "LOW"},
+        {"field": "stage_drought_sensitivity", "op": "in", "value": ["low", "medium"]},
+        {"field": "water_balance_mm", "op": "gte", "value": 0}
+      ],
+      "action": "Rainfall over the coming week looks adequate. This is a suitable window for top-dressing nitrogen or an inter-culture operation.",
+      "rationale": "Nitrogen applied just before reliable rain is taken up efficiently rather than lost."
+    },
+    {
+      "rule_id": "HARVEST_WET_WEEK_AHEAD",
+      "category": "harvest",
+      "severity": "medium",
+      "conditions": [
+        {"field": "stage_name", "op": "in", "value": ["maturity", "boll_opening"]},
+        {"field": "predicted_rainfall_mm", "op": "gte", "value": 50}
+      ],
+      "action": "The crop is at maturity and substantial rain is forecast. Bring harvest forward if the crop is ready, and arrange covered storage for what is already cut.",
+      "rationale": "Rain on a mature or harvested crop causes grain discolouration, sprouting and quality loss."
+    }
+  ]
+}
