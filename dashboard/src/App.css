@@ -1145,6 +1145,78 @@ code {
 }
 
 /* ------------------------------------------------------------------ */
+/* District map                                                         */
+/* ------------------------------------------------------------------ */
+.map-frame {
+  height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.map-canvas {
+  width: 100%;
+  height: 100%;
+  background: var(--surface-1-solid);
+  font: inherit;
+}
+
+/* A dark page should not have a bright basemap. Inverting the standard OSM
+   tiles keeps the map readable without depending on a third-party dark style. */
+.map-canvas .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.9) saturate(0.55);
+}
+
+.map-canvas .leaflet-tooltip {
+  padding: 4px 9px;
+  color: var(--ink-1);
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #0b1224;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.map-canvas .leaflet-tooltip-top::before {
+  border-top-color: var(--line-strong);
+}
+
+.map-canvas .leaflet-control-attribution {
+  color: var(--ink-4);
+  background: rgba(2, 8, 23, 0.72);
+}
+
+.map-canvas .leaflet-control-attribution a {
+  color: var(--accent-sky-ink);
+}
+
+.map-canvas .leaflet-bar a {
+  color: var(--ink-2);
+  background: #0b1224;
+  border-color: var(--line-strong);
+}
+
+.map-canvas .leaflet-interactive {
+  cursor: pointer;
+}
+
+.map-legend {
+  margin: var(--s-3) 0 var(--s-2);
+}
+
+.map-swatch-selected {
+  border-radius: 50%;
+  outline: 2px solid var(--ink-1);
+}
+
+@media (max-width: 720px) {
+  .map-frame {
+    height: 320px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Telegram                                                             */
 /* ------------------------------------------------------------------ */
 .tg {

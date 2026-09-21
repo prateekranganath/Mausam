@@ -4,6 +4,7 @@ import { useResource } from './hooks/useResource.js'
 import AdvisoryPanel from './components/AdvisoryPanel.jsx'
 import ClimateStrip from './components/ClimateStrip.jsx'
 import CropPanel from './components/CropPanel.jsx'
+import DistrictMap from './components/DistrictMap.jsx'
 import DistrictPicker from './components/DistrictPicker.jsx'
 import Footer from './components/Footer.jsx'
 import ForecastPanel from './components/ForecastPanel.jsx'
@@ -13,6 +14,7 @@ import Icon from './components/Icon.jsx'
 import { OnsetPanel, PhasePanel } from './components/MonsoonPanel.jsx'
 import TelegramPanel from './components/TelegramPanel.jsx'
 import { Chip } from './components/ui.jsx'
+import { describeRisk } from './lib/format.js'
 
 const DEFAULT_DISTRICT = 'Thiruvananthapuram'
 const DEFAULT_CROP = 'rice_transplanted'
@@ -103,6 +105,10 @@ export default function App() {
 
   const offline = health.status === 'error' && health.error?.status === 0
 
+  // Colour the selected district on the map only when the forecast on screen is
+  // ITS forecast: while a new district loads, the previous one is still held.
+  const selectedRisk = forecast.data?.district === district ? describeRisk(forecast.data) : null
+
   return (
     <div className="shell">
       <a className="skip-link" href="#main">Skip to content</a>
@@ -130,6 +136,8 @@ export default function App() {
           <>
             <Hero resource={forecast} />
             <KpiRow forecast={forecast} metrics={metrics} />
+
+            <DistrictMap resource={districts} selected={district} risk={selectedRisk} onSelect={setDistrict} />
 
             <ForecastPanel resource={forecast} />
 

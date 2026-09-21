@@ -44,6 +44,7 @@ than showing nine separate errors.
 
 | Panel | Endpoint | Notes |
 |---|---|---|
+| District map | `GET /districts` | Centroid markers from the API's own coordinates. Click one to select it; the selected one is coloured from its own real forecast. Basemap tiles come from OpenStreetMap, so the map needs internet access |
 | Hero, KPI tiles | `GET /forecast/{district}` | One call feeds the hero, tiles and forecast charts |
 | Model skill tile | `GET /model/metrics` | Fails independently of the rest |
 | Next 7 days | `GET /forecast/{district}` | Not `/forecast/{district}/series`: that endpoint re-runs the whole forecast to return the same seven rows |
@@ -103,6 +104,11 @@ Things the dashboard deliberately does *not* do:
   "Onset confidence" and "Heavy rain watch" in the browser from formulas that
   saturated (the break figure read 98% for almost any forecast). Those are gone;
   the panels show what the backend measured.
+- **The map does not colour every district.** An earlier version derived each
+  polygon's colour from the one selected forecast plus a fixed pseudo-random
+  offset by polygon index, and invented "Week 2 to 4" outlooks the 7-day forecast
+  cannot support. Those are not carried over. Colouring all districts truthfully
+  needs a forecast per district, which the API does not batch yet.
 - **It does not print a green "Low risk" where that label means nothing.** In
   many district-months normal rainfall is already near 0 mm, so the API flags the
   threshold as degenerate. The hero then says "A dry week is normal here" and
@@ -124,5 +130,5 @@ src/
   api/client.js        the only place that calls the API
   hooks/useResource.js fetch + cancel + keep-previous-render
   lib/format.js        formatting and describeRisk()
-  components/          one file per panel, plus charts.jsx and ui.jsx
+  components/          one file per panel (DistrictMap.jsx uses react-leaflet), plus charts.jsx and ui.jsx
 ```

@@ -58,9 +58,9 @@ ground truth where any exists:
 | ENSO / IOD / MJO | `/climate/context` | Ingested and served as **context**; measured NOT to help as model features |
 | Finer-than-district granularity | `/forecast/point?lat=&lon=` | Grid-downscaled point forecast, explicitly not validated below district level |
 | Crop advisory | `/advisory/crop/{district}` | Built; deterministic rule engine, 9 kharif crops |
-| Dashboard | `dashboard/` | Built (React + Vite); see [dashboard/README.md](dashboard/README.md) |
+| Dashboard | `dashboard/` | Built (React + Vite), including a district-picker map; see [dashboard/README.md](dashboard/README.md) |
 | Telegram alerts | `/alerts/telegram/preview`, `/alerts/telegram/send` | Built; preview works with no credentials, send needs a bot token |
-| Risk maps, WhatsApp/SMS delivery | — | Not built |
+| Risk maps, WhatsApp/SMS delivery | — | Not built. The dashboard map only colours the *selected* district; colouring all of them needs a per-district batch forecast |
 
 All of it runs on free, key-less public data sources (NASA POWER, NOAA
 CPC, NOAA PSL, the IRI Data Library and Open-Meteo).
@@ -1088,7 +1088,8 @@ they need no network or keys and cost nothing to run:
 - Not validated against independent ground-truth rainfall records beyond
   the dataset's own test split. Not an operational forecast — does not
   claim panchayat-level accuracy.
-- Not yet built: risk maps, WhatsApp/SMS delivery,
+- Not yet built: all-district risk maps (the dashboard map is a district picker
+  that colours only the selected district), WhatsApp/SMS delivery,
   stored prediction history (so no real backtest against observed rainfall
   yet), and an ensemble with external forecast sources (investigated — no
   second genuinely usable free/public source was found; see git history).
