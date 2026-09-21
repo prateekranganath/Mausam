@@ -10,7 +10,7 @@ from src.api import routes
 from src.api.main import app
 from src.api.state import ServiceState
 from src.forecasting.open_meteo import OpenMeteoError
-from src.llm.openrouter import Advisory, OpenRouterError
+from src.llm.openrouter import OpenRouterError, Summary
 
 LIVE = {
     "district": "Kolkata",
@@ -355,89 +355,167 @@ def test_metrics_503_when_eval_results_missing():
 
 
 # --- advisory --------------------------------------------------------------------------------
+#
+# /advisory returns a deterministic `analysis` (always) plus an optional
+# LLM-written `ai_summary`. The LLM is always stubbed here.
 
-def _advisory(**kw):
-    base = dict(
-        forecast_summary="s", rainfall_risk="LOW", confidence=0.5,
-        key_factors=[], model_disagreement=[], advisory=["a"],
-    )
+def _summary(**kw):
+    base = dict(text="Kolkata can expect about 99 mm this week.", model="m/x:free")
     base.update(kw)
-    return Advisory(**base)
+    return Summary(**base)
 
 
-def test_advisory_degrades_to_numbers_only_when_llm_unconfigured(client, monkeypatch):
-    monkeypatch.setattr(routes.openrouter, "is_configured", lambda: False)
+def _llm(monkeypatch, generate, configured=True):
+    monkeypatch.setattr(routes.openrouter, "is_configured", lambda: configured)
+    monkeypatch.setattr(routes.openrouter, "generate_summary", generate)
+
+
+def _never_called(facts):
+    raise AssertionError("the LLM must not be called")
+
+
+def test_analysis_is_present_and_derived_from_the_forecast(client, monkeypatch):
+    _llm(monkeypatch, _never_called)
+    body = client.get("/advisory/Kolkata", params={"polish": "false"}).json()
+    analysis = body["analysis"]
+    assert analysis["source"] == "rules"
+    assert "Kolkata" in analysis["headline"]
+    assert analysis["risk_level"] == "MODERATE"  # the forecast model's own level, passed through
+    assert analysis["confidence"] in {"low", "moderate"}
+    assert analysis["actions"] and analysis["key_factors"]
+
+
+def test_polish_false_never_calls_the_llm_and_says_so(client, monkeypatch):
+    """The analysis alone is instant: the dashboard asks for it first."""
+    _llm(monkeypatch, _never_called)
+    body = client.get("/advisory/Kolkata", params={"polish": "false"}).json()
+    assert body["ai_status"] == "skipped"
+    assert body["ai_summary"] is None and body["llm_error"] is None
+
+
+def test_polish_defaults_to_true(client, monkeypatch):
+    calls = []
+    _llm(monkeypatch, lambda facts: calls.append(1) or _summary())
+    assert client.get("/advisory/Kolkata").json()["ai_status"] == "ok"
+    assert calls == [1]
+
+
+def test_unconfigured_still_returns_the_full_analysis_and_the_numbers(client, monkeypatch):
+    _llm(monkeypatch, _never_called, configured=False)
     r = client.get("/advisory/Kolkata")
-    assert r.status_code == 200
     body = r.json()
-    assert body["advisory"] is None and "not configured" in body["llm_error"]
+    assert r.status_code == 200
+    assert body["ai_status"] == "unconfigured" and body["ai_summary"] is None
+    assert "not configured" in body["llm_error"]
+    assert body["analysis"]["headline"]
     assert body["forecast"]["ml_model"]["predicted_rainfall_mm"] == 99.16  # numbers still delivered
 
 
-def test_advisory_success_passes_through_unsupported_numbers(client, monkeypatch):
-    monkeypatch.setattr(routes.openrouter, "is_configured", lambda: True)
-    monkeypatch.setattr(routes.openrouter, "generate_advisory", lambda payload: (_advisory(), ["777"]))
+def test_success_returns_the_summary_and_the_model_that_wrote_it(client, monkeypatch):
+    _llm(monkeypatch, lambda facts: _summary())
     body = client.get("/advisory/Kolkata").json()
-    assert body["advisory"]["rainfall_risk"] == "LOW"
-    assert body["unsupported_numbers"] == ["777"]
+    assert body["ai_status"] == "ok"
+    assert body["ai_summary"]["text"].startswith("Kolkata")
+    assert body["ai_summary"]["model"] == "m/x:free"
+    assert "unsupported_numbers" not in body["ai_summary"]  # unfaithful notes are rejected, not flagged
     assert body["llm_error"] is None
 
 
-def test_advisory_llm_failure_is_200_with_numbers_not_5xx(client, monkeypatch):
-    monkeypatch.setattr(routes.openrouter, "is_configured", lambda: True)
+def test_llm_failure_is_200_with_the_full_analysis_not_a_5xx(client, monkeypatch):
+    """The point of the redesign: an overloaded free model used to mean NO
+    advisory. Now it means one optional paragraph is missing."""
+    def fail(facts):
+        raise OpenRouterError("No model produced a usable answer (m/x: HTTP 503)")
 
-    def fail(payload):
-        raise OpenRouterError("provider down")
-
-    monkeypatch.setattr(routes.openrouter, "generate_advisory", fail)
+    _llm(monkeypatch, fail)
     r = client.get("/advisory/Kolkata")
+    body = r.json()
     assert r.status_code == 200
-    assert r.json()["advisory"] is None and "provider down" in r.json()["llm_error"]
+    assert body["ai_status"] == "unavailable" and body["ai_summary"] is None
+    assert "HTTP 503" in body["llm_error"]
+    assert body["analysis"]["headline"] and body["analysis"]["actions"]
 
 
-def test_advisory_is_cached_per_district_and_date(client, monkeypatch):
-    monkeypatch.setattr(routes.openrouter, "is_configured", lambda: True)
+def test_the_analysis_is_identical_with_and_without_the_llm(client, monkeypatch):
+    """The narrative may never change the substance."""
+    _llm(monkeypatch, lambda facts: _summary())
+    with_llm = client.get("/advisory/Kolkata").json()["analysis"]
+    without = client.get("/advisory/Kolkata", params={"polish": "false"}).json()["analysis"]
+    assert with_llm == without
+
+
+def test_summary_is_cached_per_district_and_date(client, monkeypatch):
     calls = []
-
-    def gen(payload):
-        calls.append(1)
-        return _advisory(), []
-
-    monkeypatch.setattr(routes.openrouter, "generate_advisory", gen)
+    _llm(monkeypatch, lambda facts: calls.append(1) or _summary())
     client.get("/advisory/Kolkata")
     client.get("/advisory/Kolkata")
     assert len(calls) == 1
 
 
-def test_failed_advisory_is_not_cached(client, monkeypatch):
-    monkeypatch.setattr(routes.openrouter, "is_configured", lambda: True)
-    attempts = iter([OpenRouterError("first fails"), (_advisory(), [])])
+def test_a_cached_summary_is_returned_with_status_ok(client, monkeypatch):
+    _llm(monkeypatch, lambda facts: _summary())
+    client.get("/advisory/Kolkata")
+    body = client.get("/advisory/Kolkata").json()
+    assert body["ai_status"] == "ok" and body["ai_summary"]["model"] == "m/x:free"
+
+
+def test_polish_false_is_never_cached_or_served_from_cache(client, monkeypatch):
+    _llm(monkeypatch, lambda facts: _summary())
+    client.get("/advisory/Kolkata")
+    assert client.get("/advisory/Kolkata", params={"polish": "false"}).json()["ai_status"] == "skipped"
+
+
+def test_failed_summary_is_not_cached(client, monkeypatch):
+    attempts = iter([OpenRouterError("first fails"), _summary()])
     calls = []
 
-    def gen(payload):
+    def generate(facts):
         calls.append(1)
         outcome = next(attempts)
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
 
-    monkeypatch.setattr(routes.openrouter, "generate_advisory", gen)
-    assert client.get("/advisory/Kolkata").json()["advisory"] is None
-    assert client.get("/advisory/Kolkata").json()["advisory"] is not None
+    _llm(monkeypatch, generate)
+    assert client.get("/advisory/Kolkata").json()["ai_status"] == "unavailable"
+    assert client.get("/advisory/Kolkata").json()["ai_status"] == "ok"
     assert len(calls) == 2
 
 
-def test_llm_payload_contains_numbers_but_not_secrets_or_notes(client, monkeypatch):
-    monkeypatch.setattr(routes.openrouter, "is_configured", lambda: True)
+def test_the_llm_is_given_the_analysis_statements_not_the_raw_forecast(client, monkeypatch):
+    """It rewrites correct sentences. Given raw numbers to interpret, a small
+    model contradicted itself ("not unusually dry ... 54% chance of dry") and
+    called the wettest day the lowest."""
     seen = {}
 
-    def gen(payload):
-        seen.update(payload)
-        return _advisory(), []
+    def generate(facts):
+        seen.update(facts)
+        return _summary()
 
-    monkeypatch.setattr(routes.openrouter, "generate_advisory", gen)
-    client.get("/advisory/Kolkata")
-    assert seen["ml_model"]["predicted_rainfall_mm"] == 99.16
-    assert seen["agreement"]["threshold_mm"] == 61.06
-    assert "note" not in seen["agreement"]
-    assert seen["model_reliability"]["model_roc_auc"] == 0.754
+    _llm(monkeypatch, generate)
+    analysis = client.get("/advisory/Kolkata").json()["analysis"]
+    assert seen["district"] == "Kolkata"
+    assert seen["points"][0] == analysis["headline"]
+    joined = " ".join(seen["points"])
+    assert "99.2 mm" in joined and "95.7 mm" in joined and "61.1 mm" in joined
+    for raw in ("predicted_rainfall_mm", "threshold_degenerate", "rainfall_probability", "roc_auc", "note"):
+        assert raw not in str(seen)
+
+
+def test_analysis_quotes_the_held_out_test_evidence(client, monkeypatch):
+    _llm(monkeypatch, _never_called)
+    reasons = client.get("/advisory/Kolkata", params={"polish": "false"}).json()["analysis"]["confidence_reasons"]
+    assert any("0.75" in r and "0.69" in r for r in reasons)
+
+
+def test_analysis_works_with_no_evaluation_results_loaded(monkeypatch):
+    _install(eval_results=None)
+    _llm(monkeypatch, _never_called)
+    body = TestClient(app).get("/advisory/Kolkata", params={"polish": "false"}).json()
+    assert body["analysis"]["headline"]
+    assert not any("ROC-AUC" in r for r in body["analysis"]["confidence_reasons"])
+
+
+def test_advisory_404s_for_an_unserved_district(client, monkeypatch):
+    _llm(monkeypatch, _never_called)
+    assert client.get("/advisory/Atlantis").status_code == 404

@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from src.api.schemas import (
     Agreement,
     AdvisoryResponse,
+    AiSummary,
     AlertPreviewResponse,
     AlertSendResponse,
     ClimateContextResponse,
@@ -56,6 +57,7 @@ from src.forecasting.agreement import compute_agreement, lookup_threshold
 from src.forecasting.district_registry import DistrictConfig, get_district_config, list_district_configs
 from src.forecasting.open_meteo import MAX_HISTORICAL_DAYS, fetch_historical_weather
 from src.llm import openrouter
+from src.llm.analysis import build_analysis, summary_facts
 from src.monsoon import active_break, onset as onset_module
 
 logger = logging.getLogger(__name__)
@@ -420,99 +422,77 @@ def model_metrics(
     )
 
 
-def _reliability_context(svc: ServiceState) -> Optional[dict[str, Any]]:
+def _analysis_reliability(svc: ServiceState) -> dict[str, Any]:
+    """Held-out-test evidence the analysis quotes; empty if unavailable."""
     ev = svc.eval_results
     if not ev:
-        return None
-    c, b = ev["classifier"], ev["baseline"]
-    return {
-        "scope": f"pooled over {len(svc.trained_districts)} districts on held-out test data",
-        "model_roc_auc": round(c["roc_auc"], 3),
-        "climatology_baseline_roc_auc": round(b["roc_auc"], 3),
-        "model_pr_auc": round(c["pr_auc"], 3),
-        "climatology_baseline_pr_auc": round(b["pr_auc"], 3),
-        "share_of_test_weeks_that_were_unusually_dry": round(c["positive_rate"], 3),
-        "note": "A ROC-AUC of 0.5 is chance. Skill varies substantially between districts.",
+        return {}
+    out: dict[str, Any] = {
+        "roc_auc": ev["classifier"]["roc_auc"],
+        "baseline_roc_auc": ev["baseline"]["roc_auc"],
     }
-
-
-def _climate_context_safe() -> Optional[dict[str, Any]]:
-    """Climate indices, or None if the feeds are unreachable.
-
-    Context must never be able to fail a forecast: these are three
-    third-party feeds that exist to add colour, not to gate the numbers.
-    """
-    try:
-        return climate.current_snapshot()
-    except climate.ClimateIndexError as exc:
-        logger.warning("Climate context unavailable: %s", exc)
-        return None
-
-
-def _llm_payload(forecast: ForecastResponse, svc: ServiceState) -> dict[str, Any]:
-    agreement = forecast.agreement.model_dump()
-    agreement.pop("note", None)
-    return {
-        "district": forecast.district,
-        "state": forecast.state,
-        "as_of_date": forecast.as_of_date,
-        "field_definitions": {
-            "ml_model.rainfall_probability": "probability the next 7 days are unusually dry for this district and time of year",
-            "ml_model.predicted_rainfall_mm": "the model's expected total rainfall over the next 7 days",
-            "open_meteo_forecast.total_precipitation_sum_mm": "Open-Meteo's forecast total rainfall over the next 7 days",
-            "agreement.threshold_mm": "7-day rainfall below this counts as insufficient for this district and month",
-        },
-        "ml_model": forecast.ml_model.model_dump(include={"rainfall_probability", "risk_level", "predicted_rainfall_mm"}),
-        "open_meteo_forecast": forecast.open_meteo_forecast.model_dump(),
-        "agreement": agreement,
-        "model_reliability": _reliability_context(svc),
-        # Seasonal-scale CONTEXT ONLY. These are deliberately not model
-        # inputs (see README: the pooled model's 2.5-year training window
-        # cannot support them), so the prompt must not let them read as
-        # part of the prediction. They go through the payload rather than
-        # into the prompt text because find_unsupported_numbers flags any
-        # figure the model states that is not traceable to this dict.
-        "climate_context": _climate_context_safe(),
-        "climate_context_caveat": (
-            "ENSO and IOD describe the season as a whole and are NOT inputs to the "
-            "7-day model. Treat them as background, never as the basis for a specific "
-            "rainfall number. Note each index's as_of date: several are months old."
-        ),
-    }
+    if ev.get("regressor") and ev.get("baseline_regression"):
+        out["regressor_mae"] = ev["regressor"]["mae"]
+        out["baseline_mae"] = ev["baseline_regression"]["mae"]
+    return out
 
 
 @router.get("/advisory/{district}", response_model=AdvisoryResponse, tags=["forecast"])
-def advisory(district: str, request: Request) -> AdvisoryResponse:
-    """Everything in /forecast plus an LLM-written structured advisory. If the
-    LLM is unavailable this still returns 200 with the full numeric forecast
-    and `advisory: null`, so the numbers never depend on the narrative."""
+def advisory(
+    district: str,
+    request: Request,
+    polish: bool = Query(
+        default=True,
+        description="Also ask an LLM for a plain-language paragraph. Pass false for the analysis alone, which is instant.",
+    ),
+) -> AdvisoryResponse:
+    """The forecast plus an analysis of it.
+
+    `analysis` is ALWAYS present: risk, confidence, key factors, disagreement
+    between the sources and actions, all derived by rules from the forecast
+    numbers, so it is instant and cannot fail. `ai_summary` is an optional
+    plain-language paragraph over it from a free-tier LLM. If that is slow,
+    overloaded or unconfigured the response is still 200 with the full
+    analysis and `ai_status` saying why, so the numbers never depend on the
+    narrative.
+
+    Call with `polish=false` for the analysis alone, then again with the
+    default for the paragraph: the first is instant, the second can take
+    several seconds.
+    """
     svc = _svc(request)
     cfg = _resolve(svc, district)
     forecast_data = _build_forecast(svc, cfg)
+    forecast_dict = forecast_data.model_dump()
+    analysis = build_analysis(forecast_dict, _analysis_reliability(svc))
+
+    if not polish:
+        return AdvisoryResponse(forecast=forecast_data, analysis=analysis, ai_status="skipped")
 
     if not openrouter.is_configured():
         return AdvisoryResponse(
             forecast=forecast_data,
-            llm_error="OpenRouter is not configured (set OPENROUTER_API_KEY and OPENROUTER_MODEL).",
+            analysis=analysis,
+            ai_status="unconfigured",
+            llm_error="OpenRouter is not configured (set OPENROUTER_API_KEY).",
         )
 
     key = (cfg.district, forecast_data.as_of_date)
     cached = svc.advisory_cache.get(key)
     if cached and time.time() - cached[0] < ADVISORY_CACHE_TTL_SECONDS:
-        return AdvisoryResponse(
-            forecast=forecast_data, advisory=cached[1], unsupported_numbers=cached[2], llm_model=openrouter.OPENROUTER_MODEL
-        )
+        return AdvisoryResponse(forecast=forecast_data, analysis=analysis, ai_status="ok", ai_summary=cached[1])
 
     try:
-        result, unsupported = openrouter.generate_advisory(_llm_payload(forecast_data, svc))
+        summary = openrouter.generate_summary(summary_facts(forecast_dict, analysis))
     except openrouter.OpenRouterError as exc:
-        logger.warning("Advisory generation failed for %s: %s", cfg.district, exc)
-        return AdvisoryResponse(forecast=forecast_data, llm_error=str(exc)[:300])
+        logger.warning("AI summary failed for %s: %s", cfg.district, exc)
+        return AdvisoryResponse(
+            forecast=forecast_data, analysis=analysis, ai_status="unavailable", llm_error=str(exc)[:400]
+        )
 
-    svc.advisory_cache[key] = (time.time(), result, unsupported)
-    return AdvisoryResponse(
-        forecast=forecast_data, advisory=result, unsupported_numbers=unsupported, llm_model=openrouter.OPENROUTER_MODEL
-    )
+    ai = AiSummary(text=summary.text, model=summary.model)
+    svc.advisory_cache[key] = (time.time(), ai)  # failures are deliberately not cached
+    return AdvisoryResponse(forecast=forecast_data, analysis=analysis, ai_status="ok", ai_summary=ai)
 
 
 # --------------------------------------------------------------------------

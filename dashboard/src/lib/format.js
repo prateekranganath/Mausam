@@ -65,7 +65,8 @@ export function describeAge(iso, now = new Date()) {
 export function humanise(value) {
   if (!value) return ''
   const text = String(value).replace(/[_-]+/g, ' ').trim()
-  return text.charAt(0).toUpperCase() + text.slice(1)
+  // Lowercase the rest so an API value like "MODERATE" reads "Moderate", not "MODERATE".
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
 }
 
 /**

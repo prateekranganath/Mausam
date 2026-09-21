@@ -54,7 +54,7 @@ class ServiceState:
     trained_districts: frozenset[str]
     excluded_districts: dict[str, str] = field(default_factory=dict)
     eval_results: Optional[dict[str, Any]] = None
-    # (district, as_of_date) -> (unix_ts, advisory, unsupported_numbers)
+    # (district, as_of_date) -> (unix_ts, AiSummary). Only successful summaries are cached.
     advisory_cache: dict = field(default_factory=dict)
     # Unix timestamps of recent Telegram sends, for the throttle. A list
     # rather than a counter so the window slides rather than resetting on a

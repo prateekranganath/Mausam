@@ -1086,6 +1086,64 @@ code {
   margin-top: var(--s-2);
 }
 
+.analysis-headline {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+  color: var(--ink-1);
+}
+
+.reasons {
+  margin: calc(var(--s-2) * -1) 0 0;
+  padding-left: 20px;
+  color: var(--ink-3);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+/* The optional AI paragraph: visibly secondary to the analysis around it. */
+.ai-note-wrap {
+  padding: 16px 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.ai-note-wrap .ai-heading {
+  margin-bottom: var(--s-2);
+}
+
+.ai-note,
+.ai-note-loading {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.ai-note .ai-summary {
+  font-size: 1.02rem;
+}
+
+.ai-note p,
+.ai-note-loading p {
+  margin: 0;
+}
+
+.ai-note-wrap .callout {
+  margin: 0;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-sky-ink);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
 /* ------------------------------------------------------------------ */
 /* Telegram                                                             */
 /* ------------------------------------------------------------------ */

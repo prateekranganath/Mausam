@@ -89,12 +89,16 @@ export default function App() {
     { delay: 200 },
   )
 
-  // The LLM call: slow, rate-limited and unnecessary for anything else on the
-  // page. Wait for the forecast, then debounce, so clicking through districts
-  // does not queue a 90-second model call for each one.
-  const advisory = useResource((signal) => api.advisory(district, signal), [district], {
-    enabled: forecast.status === 'ready',
-    delay: 900,
+  // The forecast analysis, in two steps. The analysis itself is derived by
+  // rules on the server and is instant, so it is fetched straight away. The
+  // AI paragraph is a separate, slow, rate-limited call to a free-tier model:
+  // it waits for the analysis, then debounces, so clicking through districts
+  // does not queue a model call for each one, and it can fail without the
+  // analysis noticing.
+  const analysis = useResource((signal) => api.advisory(district, { polish: false }, signal), [district])
+  const aiNote = useResource((signal) => api.advisory(district, { polish: true }, signal), [district], {
+    enabled: analysis.status === 'ready',
+    delay: 400,
   })
 
   const offline = health.status === 'error' && health.error?.status === 0
@@ -145,7 +149,7 @@ export default function App() {
 
             <ClimateStrip resource={climate} />
             <HistoryPanel resource={historical} />
-            <AdvisoryPanel resource={advisory} />
+            <AdvisoryPanel analysis={analysis} ai={aiNote} />
             <TelegramPanel district={district} crop={crop} sowingDate={sowingDate} />
           </>
         )}

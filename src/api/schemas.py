@@ -6,7 +6,6 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from src.llm.openrouter import Advisory
 
 
 class HealthResponse(BaseModel):
@@ -170,20 +169,51 @@ class MetricsResponse(BaseModel):
     note: str
 
 
+class AnalysisBlock(BaseModel):
+    """The forecast analysis, derived by rules from the forecast numbers.
+
+    Always present and never depends on an LLM: instant, reproducible, and
+    every number in it is a number from the forecast. `risk_level` is the
+    forecast MODEL's own level, passed through; nothing re-rates it.
+    """
+
+    source: Literal["rules"]
+    headline: str
+    risk_level: Optional[Literal["LOW", "MODERATE", "HIGH"]] = Field(
+        default=None,
+        description="The forecast model's level, or null where a dry week is normal for this district-month and the label carries no information (see risk_meaningful)",
+    )
+    risk_meaningful: bool
+    confidence: Literal["low", "moderate"] = Field(
+        description="Never 'high': the pooled model is hackathon-grade. 'low' when the model and Open-Meteo differ materially."
+    )
+    confidence_reasons: list[str]
+    key_factors: list[str]
+    model_disagreement: list[str] = Field(
+        default_factory=list, description="Empty unless the model and Open-Meteo disagree"
+    )
+    actions: list[str]
+
+
+class AiSummary(BaseModel):
+    """An LLM-written plain-language rewrite of the analysis. A note that cites a figure not in the
+    input, or attaches a number to the wrong unit, is rejected before it gets here."""
+
+    text: str
+    model: str = Field(description="Which model in the fallback chain actually answered")
+
+
 class AdvisoryResponse(BaseModel):
     forecast: ForecastResponse
-    advisory: Optional[Advisory] = Field(
-        default=None, description="null if the LLM was unavailable; see llm_error"
+    analysis: AnalysisBlock
+    ai_status: Literal["ok", "skipped", "unconfigured", "unavailable"] = Field(
+        description="ok: ai_summary is present. skipped: the caller passed polish=false. unconfigured: no API key. unavailable: every model failed (see llm_error)."
     )
-    unsupported_numbers: list[str] = Field(
-        default_factory=list,
-        description="Numbers in the narrative that could not be traced to the input data - treat with suspicion",
-    )
-    llm_model: Optional[str] = None
+    ai_summary: Optional[AiSummary] = None
     llm_error: Optional[str] = None
     note: str = (
-        "The advisory is LLM-generated commentary over the numeric forecast. "
-        "It is not a source of weather data."
+        "The analysis is derived by rules from the forecast numbers. The AI summary, when present, only "
+        "restates it in plain language and is not a source of weather data."
     )
 
 

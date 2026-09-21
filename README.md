@@ -44,7 +44,7 @@ model.**
 
 Live forecasting is wired up to [Open-Meteo](https://open-meteo.com)
 (free, no API key) for real recent weather. A **FastAPI backend** serves
-the all-India model plus an optional OpenRouter reasoning layer — see
+the all-India model plus a rule-based forecast analysis with an optional OpenRouter plain-language note — see
 [Backend API](#backend-api). A React dashboard in [`dashboard/`](dashboard/README.md) displays it.
 
 **Beyond the rainfall model**, the service also answers the wider set of
@@ -85,15 +85,17 @@ cp .env.example .env        # Windows: copy .env.example .env
 |---|---|---|---|
 | `HF_TOKEN` | Pulling the model at API startup | — | The model repo was created **private** by `push_to_huggingface.py`, so a token is required. Without one the API falls back to `models/all-india/`, which exists only if you trained locally (the `.joblib` files are git-ignored). |
 | `HF_USERNAME` | Hugging Face repo names | `neollm007` | |
-| `OPENROUTER_API_KEY` | `/advisory` only | — | |
-| `OPENROUTER_MODEL` | `/advisory` only | — | Any OpenRouter model id; `.env.example` has the recommended free one. |
-| `OPENROUTER_TIMEOUT_SECONDS` | `/advisory` | `60` | Free models can take 20–90s. |
+| `OPENROUTER_API_KEY` | The optional AI note in `/advisory` | — | A key alone is enough: a default model chain is used. |
+| `OPENROUTER_MODEL` | `/advisory` | first of the default chain | Tried first. |
+| `OPENROUTER_FALLBACK_MODELS` | `/advisory` | laguna-xs, gemma-4-26b, nex-n2.5-mini (all `:free`) | Comma-separated, tried in order when the one before fails. Empty disables fallbacks. |
+| `OPENROUTER_TIMEOUT_SECONDS` | `/advisory` | `25` | Per model attempt. |
+| `OPENROUTER_TOTAL_BUDGET_SECONDS` | `/advisory` | `40` | For the whole chain: this is what bounds the wait. |
 | `API_ALLOWED_ORIGINS` | CORS for a browser frontend | `http://localhost:3000,http://localhost:5173` | Comma-separated. |
 | `RAINFALL_RISK_THRESHOLD_PERCENTILE` | Training | `33` | Defines "insufficient" (changing it requires retraining). |
 | `DEFAULT_DISTRICT` | CLI scripts | `Thiruvananthapuram` | |
 
-If the OpenRouter variables are unset, `/advisory` still returns HTTP 200
-with `advisory: null` and an `llm_error`; every other endpoint works without them.
+If there is no OpenRouter key, `/advisory` still returns HTTP 200 with the full
+`analysis` and `ai_status: "unconfigured"`; every other endpoint works without it.
 
 ### 3. Run the API
 
@@ -136,7 +138,7 @@ python scripts/forecast.py --district "Mumbai Suburban"
 | Startup fails with `No model available` | Set `HF_TOKEN`, or train locally with `scripts/train_all_india_model.py`. |
 | `404 District ... cannot be forecast` | The district is excluded (no or incomplete training data); see `/health` → `excluded_districts`. |
 | `503 ... Open-Meteo ... unreachable` | No network and nothing cached. Retry. |
-| `/advisory` is slow or returns `llm_error` | Free OpenRouter models are sometimes overloaded. Retry, or raise `OPENROUTER_TIMEOUT_SECONDS`. |
+| `/advisory` has `ai_status: "unavailable"` | Every free model in the chain failed (`llm_error` lists why for each). The `analysis` is complete regardless. Retry in a minute, or check the key. |
 | "cache-system uses symlinks" / "hf_xet not installed" warnings | Harmless on Windows. |
 
 ## Usage reference
@@ -437,8 +439,9 @@ are from a real run for Kolkata on 2026-09-18.
 | 8 | Compare with Open-Meteo | `compute_agreement` | Open-Meteo 95.7mm; Kolkata's September threshold 61.06mm → both above it, sources agree, gap 3.46mm |
 | 9 | Shape the response | `routes._build_forecast` | `ml_model`, `open_meteo_forecast`, `agreement` |
 
-`/advisory` adds one step: it sends the numbers to OpenRouter, validates the
-structured reply, and checks every number in the prose against the input.
+`/advisory` adds two steps: a rule-based **analysis** of those numbers (instant,
+always present), and an optional plain-language note from an LLM that rewrites
+the analysis in simpler words. See [The forecast analysis](#the-forecast-analysis-advisory).
 
 **Risk bands.** `risk_level` is a bucketing of the classifier's probability:
 ≥0.66 `HIGH`, ≥0.33 `MODERATE`, otherwise `LOW`. Those cutoffs are a
@@ -487,7 +490,7 @@ unreachable), then shared across requests.
 | `GET /forecast/{district}` | ML risk + Open-Meteo forecast + agreement check. **No LLM** — fast and always available |
 | `GET /historical/{district}?days=90` | Last N days (1-730) of weather fetched **live** from Open-Meteo's archive API, ending yesterday |
 | `GET /model/metrics?district=` | Held-out test metrics vs. the climatology baseline |
-| `GET /advisory/{district}` | Everything in `/forecast` plus an LLM-written structured advisory |
+| `GET /advisory/{district}` | Everything in `/forecast` plus a rule-based `analysis` (always present) and an optional LLM plain-language note |
 
 ### Endpoint reference
 
@@ -505,7 +508,7 @@ this for you). Four names need their state suffix: `Raipur (CT)`,
 | `GET /forecast/{district}` | — | `ml_model`, `open_meteo_forecast`, `agreement` (below) |
 | `GET /historical/{district}` | `days` 1–730 (default 90) | `source`, `requested_days`, `n_points`, `data_start`, `data_end`, `missing_rainfall_days`, `units`, `data[]` of `{date, rainfall, avg_temp, min_temp, max_temp, wind_speed, air_pressure, relative_humidity}` |
 | `GET /model/metrics` | `district` (optional; only 6 sampled districts have per-district metrics: Bengaluru Urban, Jaisalmer, Kolkata, Mumbai Suburban, New Delhi, Thiruvananthapuram) | Test metrics for `classifier`, `baseline`, `regressor`, `baseline_regression`, date ranges, `district_metrics` |
-| `GET /advisory/{district}` | — | `forecast` (same as `/forecast`), `advisory`, `unsupported_numbers`, `llm_model`, `llm_error` |
+| `GET /advisory/{district}` | `polish` (default `true`; `false` skips the LLM and returns instantly) | `forecast`, `analysis` (always present), `ai_status` (`ok`/`skipped`/`unconfigured`/`unavailable`), `ai_summary` `{text, model}`, `llm_error` |
 | `GET /forecast/point` | `lat`, `lon` (required) | `resolved_district`, `distance_km`, `forecast`, `caveat`. 422 outside India or >150 km from any district centroid |
 | `GET /climate/context` | — | `enso`, `iod`, `mjo`, each with `value`, `as_of`, `phase`, `publication_lag_days`, `source`. **Context, not a model input** |
 | `GET /monsoon/onset/{district}` | `season` (optional): `southwest` or `northeast` | `status`, `onset_date`, `anomaly_days`, `climatology`, `rejected_false_onsets`, `data` (provenance), `not_imd_criterion` |
@@ -549,22 +552,26 @@ Abridged `GET /forecast/Kolkata`:
 }
 ```
 
-`GET /advisory/{district}` adds this structured object (all six fields always present):
+`GET /advisory/{district}` adds an `analysis` object, **always present** and derived
+by rules from the numbers above:
 
 ```json
-"advisory": {
-  "forecast_summary": "...", "rainfall_risk": "LOW",
-  "confidence": 0.5,
-  "key_factors": ["..."], "model_disagreement": ["..."], "advisory": ["..."]
+"analysis": {
+  "source": "rules",
+  "headline": "Moderate risk of an unusually dry week in Nagpur: about 54% chance, with 66.6 mm expected.",
+  "risk_level": "MODERATE", "risk_meaningful": true,
+  "confidence": "moderate", "confidence_reasons": ["The model and Open-Meteo agree.", "..."],
+  "key_factors": ["..."], "model_disagreement": [], "actions": ["..."]
 }
 ```
 
-`/advisory` takes roughly 20–45s on the free model and is cached in-process
-for an hour (lost on restart).
+and, when an LLM answered, `"ai_summary": {"text": "...", "model": "..."}`.
+The analysis takes ~0.2s; the AI note takes 2–12s and is cached in-process for an
+hour (lost on restart). Call with `?polish=false` for the analysis alone.
 
 | Status | When |
 |---|---|
-| `200` | Success. Also `/advisory` when the LLM fails: `advisory: null` plus `llm_error`. |
+| `200` | Success. Also `/advisory` when the LLM fails: the full `analysis` plus `ai_status: "unavailable"` and `llm_error`. |
 | `404` | Unknown district; an excluded district (the reason is given); `/model/metrics?district=` for a district without sampled metrics (lists the available ones). |
 | `422` | Invalid parameter, e.g. `days` outside 1–730. |
 | `503` | Open-Meteo unreachable with nothing cached; Open-Meteo returned no usable data; evaluation results unavailable. |
@@ -603,28 +610,73 @@ means the same thing on each side. It flags `magnitude_diverges` when the two
 totals differ substantially, even if both land on the same side of the
 threshold.
 
-**The LLM layer (`/advisory`)** is given the numbers and asked only to
-summarise, explain disagreement, and give general guidance, as structured
-JSON. It is **not a source of weather data**: the prompt forbids inventing
-numbers, and every number in its narrative is checked against the input —
-anything untraceable is returned in `unsupported_numbers` rather than hidden.
-If OpenRouter is unconfigured or failing, `/advisory` still returns HTTP 200
-with the full numeric forecast and `advisory: null` + `llm_error`, so the
-numbers never depend on the narrative. Set `OPENROUTER_API_KEY` and
-`OPENROUTER_MODEL`. Only **free** models are used. Measured through this
-client with a realistic payload:
+### The forecast analysis (`/advisory`)
 
-| Free model | Result |
+**What it used to be, and why it changed.** `/advisory` asked one free-tier LLM
+for the whole answer as a strict six-field JSON object: a risk rating, a
+confidence score, key factors, source disagreement and actions. Measured
+against the live free tier on 2026-09-21 it was:
+
+- **slow**: 11s to 49s;
+- **flaky**: Bhopal failed outright because Nvidia returned `503 Service temporarily overloaded` and the client retried the *same* model twice, one second apart;
+- **inconsistent**: it rated Nagpur `LOW` while the forecast model said `MODERATE`, and returned `confidence: 0.0` for Pune.
+
+Asking one free model to do six jobs, several of them judgements the code
+already knows the answer to, is what made it fragile.
+
+**What it is now: substance by rules, wording by an optional model.**
+
+| Part | Comes from | Reliability |
+|---|---|---|
+| `analysis`: headline, risk, confidence, key factors, where the sources differ, actions | `src/llm/analysis.py`: rules over the forecast numbers | Instant (~0.2s), reproducible, cannot fail |
+| `ai_summary`: 2–3 plain sentences | A free-tier LLM **rewriting the analysis's own statements** in simpler words | 2–12s, sometimes unavailable; its absence never affects the analysis |
+
+- **Every number in the analysis comes from the input by construction**, and a
+  property test asserts it. The risk level is the forecast model's own, passed
+  through: nothing re-rates it. Confidence is never `high` (the model is
+  hackathon-grade) and drops to `low` when the model and Open-Meteo differ.
+- **Where the sources differ, it says which to lean on, with evidence:** on
+  held-out data the model's rainfall-amount estimate is not more accurate than
+  a climatology baseline (MAE 23.65 mm against 23.40 mm), so the analysis says
+  to lean on Open-Meteo for the amount.
+- **A dry week that is normal is not reported as low risk.** Where the
+  district-month threshold is degenerate, `risk_level` is `null` and the
+  headline says a dry week is normal here.
+
+**Measuring the free tier changed the LLM client more than any design choice.**
+
+| Observed | Response |
 |---|---|
-| `nvidia/nemotron-3-super-120b-a12b:free` | **Recommended** — valid output in ~20s |
-| `nvidia/nemotron-3-ultra-550b-a55b:free` | Works, valid, but ~75s |
-| `nvidia/nemotron-3.5-lightning:free` | Works but ~190s, and copied a probability into `confidence` |
-| `thinkingmachines/inkling:free`, `inkling-small:free` | **Unusable** — HTTP 403, "only available on agentic harnesses" |
+| Almost every free model is a *reasoning* model. With a small token cap they spend it thinking and the answer is cut off mid-sentence: Nemotron returned `"In Nagpur the forecast indicates"`, laguna returned `"The"` | `reasoning` is switched off (laguna then answered completely in 3.4s), and a reply with `finish_reason: length` is **rejected**, not shown |
+| `openrouter/free` returned its chain-of-thought as the answer (`"We need to produce 2 or 3 short plain sentences..."`) | Replies that read as leaked reasoning are rejected |
+| `nex-n2.5-mini` answered `"please share the forecast details"` | A reply must mention the district or a supplied number |
+| Any single model fails intermittently (503, 429), sometimes minutes after working | A **chain of models** (`OPENROUTER_MODEL`, then `OPENROUTER_FALLBACK_MODELS`); a model that just failed is skipped for a minute; a 40s total budget bounds the wait |
+| Given raw numbers to *interpret*, a small model wrote fluent nonsense that no number-check can catch: *"not expected to be unusually dry, though the chance of an unusually dry week is 54%"*, and the **wettest** day called *"the lowest"* | It is given the analysis's already-correct statements to **rewrite**, never numbers to read. Re-measured on six districts afterwards, those contradictions were gone |
 
-Free models are sometimes overloaded (OpenRouter returns HTTP 200 with an
-`error` body; the client honours the embedded code, retrying transient
-503/429 but not permanent 4xx or timeouts). Raise `OPENROUTER_TIMEOUT_SECONDS`
-for slower models.
+**A note that is not faithful is rejected, not shown with a warning.** Its only
+value is rewriting the analysis, so an unfaithful one is worse than none (and the
+analysis is always there without it). Two checks run on every reply, and either
+one sends the request on to the next model:
+
+- *a figure that is not in the input at all* (`999 mm`);
+- *a figure attached to the wrong unit*: a live reply turned a **54% chance**
+  into *"only about 54 mm of rain is expected against the typical 25.7 mm"*.
+  The number 54 **is** in the input, as a percentage, so a numbers-only check
+  passed it; the unit-aware check catches it.
+
+What still cannot be caught is a fluent, wrong *interpretation* that uses only
+correct figures with correct units. The rewrite-not-interpret design reduces
+that rather than eliminating it, which is why the note is labelled as restating
+the analysis and adding nothing to it.
+
+If OpenRouter is unconfigured, slow or failing, `/advisory` still returns HTTP
+200 with the complete `analysis`, so the numbers never depend on the narrative.
+Only **free** models are used. Free models are sometimes overloaded (OpenRouter
+returns HTTP 200 with an `error` body; the client treats that and a real error
+status identically). To see which free models answer *today*, rank them by
+running the same small task against each: availability changes by the hour, and
+at the time of writing several (Gemma, GLM, Qwen) returned `429` even when
+spaced out, while `nex-n2.5-mini` and `laguna-xs` answered.
 
 Notes: the district registry is read at import time, so retraining (which
 rewrites `district_config.json`) needs a server restart. Handlers are plain
@@ -988,12 +1040,12 @@ src/
   features/engineering.py     features, target, leakage-safe preprocessor, daily climatology
   ml/                         train.py, train_all_india.py, baseline.py, evaluate.py, predict.py
   forecasting/                open_meteo.py, district_registry.py (+ district_config.json), agreement.py
-  llm/openrouter.py           structured-output client + number tripwire
+  llm/                        analysis.py (rule-based forecast analysis), openrouter.py (model-chain client + number tripwire)
   api/                        main.py (app, startup), routes.py, schemas.py, state.py
   alerts/                     compose.py (pure message composer), telegram.py (sender; never retries)
 Messaging/send_telegram.py    CLI over src/alerts (--district, --crop, --preview)
 dashboard/                    React + Vite front end (see dashboard/README.md)
-tests/                        333 tests, all offline
+tests/                        417 tests, all offline
 ```
 
 ## Testing
@@ -1002,7 +1054,7 @@ tests/                        333 tests, all offline
 python -m pytest tests/ -v
 ```
 
-333 tests, all offline (Open-Meteo, OpenRouter and the model are stubbed), so
+417 tests, all offline (Open-Meteo, OpenRouter and the model are stubbed), so
 they need no network or keys and cost nothing to run:
 
 | File | Tests | Covers |
@@ -1011,8 +1063,9 @@ they need no network or keys and cost nothing to run:
 | `test_district.py` | 6 | Station aggregation, gap days, ambiguous names |
 | `test_agreement.py` | 11 | Cross-source comparison, divergence flag, degenerate thresholds |
 | `test_open_meteo.py` | 19 | Cache, retries, stale fallback, archive windows and bucketing |
-| `test_openrouter.py` | 31 | Schema validation, retry rules, embedded HTTP-200 errors, number tripwire |
-| `test_api.py` | 28 | Every endpoint, error paths, excluded districts, NaN handling |
+| `test_analysis.py` | 45 | The rule-based analysis; a property test that every number it writes comes from the input |
+| `test_openrouter.py` | 61 | Model chain and cooldowns, rejecting truncated / empty / off-task / leaked-reasoning / unfaithful replies, the time budget, the unit-aware figure check |
+| `test_api.py` | 39 | Every endpoint, error paths, excluded districts, NaN handling, `/advisory` with the LLM up, down and off |
 
 ## Known limitations
 

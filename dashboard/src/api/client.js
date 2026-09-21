@@ -81,8 +81,13 @@ export const api = {
   onset: (district, signal) => request(`/monsoon/onset/${seg(district)}`, { signal }),
   phase: (district, signal) => request(`/monsoon/phase/${seg(district)}`, { signal }),
 
-  // The slow one: a free-tier LLM call, up to OPENROUTER_TIMEOUT_SECONDS.
-  advisory: (district, signal) => request(`/advisory/${seg(district)}`, { signal }),
+  // The forecast analysis. `polish: false` returns the analysis alone, which
+  // is derived by rules and comes back instantly; `polish: true` also asks a
+  // free-tier LLM for a plain-language paragraph, which can take several
+  // seconds or be unavailable. The panel asks for the first, renders it, then
+  // asks for the second, so a slow model never delays the analysis.
+  advisory: (district, { polish }, signal) =>
+    request(`/advisory/${seg(district)}`, { signal, params: { polish: polish ? 'true' : 'false' } }),
 
   cropAdvisory: (district, { crop, sowingDate }, signal) =>
     request(`/advisory/crop/${seg(district)}`, {

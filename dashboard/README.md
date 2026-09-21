@@ -52,7 +52,7 @@ than showing nine separate errors.
 | Crop advice | `GET /crops`, `GET /advisory/crop/{district}` | Rule-based, no LLM |
 | Climate drivers | `GET /climate/context` | Context only; not a model input |
 | Recent rainfall | `GET /historical/{district}?days=90` | |
-| AI summary | `GET /advisory/{district}` | Slow (free-tier LLM); loads last and never blocks anything |
+| Forecast analysis | `GET /advisory/{district}?polish=false`, then `?polish=true` | The analysis is rule-based and instant, so it renders first and cannot fail. The AI note is fetched separately, and its absence is a quiet footnote, not an error |
 | Telegram alert | `GET /alerts/telegram/preview`, `POST /alerts/telegram/send` | See below |
 
 Every panel is its own resource (`src/hooks/useResource.js`), so a slow or
@@ -107,8 +107,11 @@ Things the dashboard deliberately does *not* do:
   many district-months normal rainfall is already near 0 mm, so the API flags the
   threshold as degenerate. The hero then says "A dry week is normal here" and
   the dry-risk tile shows `n/a`.
-- **It flags when the AI summary contradicts the model's risk level**, since the
-  LLM restates the forecast but is not forced to agree with it.
+- **It never lets a model decide the substance.** Risk, confidence, sources that
+  differ and actions come from rules on the server. The optional AI note only
+  rewrites those statements in plain words, and says so. The first version let a
+  free-tier LLM produce all of it and it rated Nagpur `LOW` under a `MODERATE`
+  headline.
 - **Onset is labelled as local rainfall onset, not an IMD declaration**, and the
   climate indices show how old each value is.
 

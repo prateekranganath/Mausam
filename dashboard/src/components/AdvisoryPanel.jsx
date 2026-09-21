@@ -3,23 +3,27 @@ import { Chip, Panel, Skeleton } from './ui.jsx'
 import { humanise } from '../lib/format.js'
 
 /*
- * The LLM-written advisory.
+ * The forecast analysis (GET /advisory/{district}).
  *
- * The original rendered ONE sentence of it, `advisory?.advisory?.advisory?.[0]`,
- * and discarded the summary, key factors, model disagreement, the remaining
- * actions, and the unsupported-numbers warning - from the slowest, most
- * rate-limited call the page makes.
+ * It has two parts with very different reliability, and the panel treats them
+ * that way:
  *
- * It is also the only panel that can be slow (a free-tier model, up to ~90 s),
- * so it owns its own loading state and never blocks the numbers.
+ *   the ANALYSIS   headline, risk, confidence, key factors, where the sources
+ *                  differ, actions. Derived by rules from the forecast numbers
+ *                  on the server: instant, and it cannot fail because no model
+ *                  is involved. This is what the panel is built around.
+ *   the AI NOTE    an optional 2-3 sentence plain-language paragraph from a
+ *                  free-tier LLM. Slow, rate-limited and sometimes down, so it
+ *                  loads separately and its absence is a quiet footnote, not
+ *                  an error.
+ *
+ * The first version of this panel rendered one sentence of an LLM response and
+ * showed nothing whenever the model was overloaded. Measured on the live free
+ * tier, that was often: a single 503 from one provider meant no advisory at all.
  */
 
-const LEVEL_TONE = { low: 'low', moderate: 'moderate', medium: 'moderate', high: 'high' }
-
-const canon = (level) => {
-  const value = String(level ?? '').toLowerCase()
-  return value === 'medium' ? 'moderate' : value
-}
+const RISK_TONE = { LOW: 'low', MODERATE: 'moderate', HIGH: 'high' }
+const RISK_ICON = { LOW: 'check-circle', MODERATE: 'alert-triangle', HIGH: 'alert-octagon' }
 
 function List({ title, items, ordered = false }) {
   if (!items?.length) return null
@@ -36,89 +40,107 @@ function List({ title, items, ordered = false }) {
   )
 }
 
-function WritingSkeleton() {
+/** The optional plain-language paragraph, in whatever state it is in. */
+function AiNote({ ai, district }) {
+  const data = ai.data
+  // The AI resource keeps its previous render while it refetches. Its text
+  // names a district, so text written for another one must not be shown.
+  const current = data && data.forecast?.district === district
+
+  if (ai.status === 'error' || data?.ai_status === 'unavailable') {
+    return (
+      <p className="callout callout-quiet">
+        <Icon name="info" size={16} />
+        <span>
+          A plain-language note could not be generated right now. The analysis here is complete and does not
+          depend on it.{' '}
+          <button type="button" className="link-button" onClick={ai.reload}>
+            Try again
+          </button>
+          {/* The real reason (overloaded, rate-limited, bad key...) so a misconfiguration is diagnosable. */}
+          {data?.llm_error || ai.error ? (
+            <details className="reco-why">
+              <summary>Why?</summary>
+              <span className="muted small">{data?.llm_error ?? ai.error?.message}</span>
+            </details>
+          ) : null}
+        </span>
+      </p>
+    )
+  }
+
+  if (data?.ai_status === 'unconfigured') {
+    return <p className="muted small">The optional plain-language note is switched off (no OpenRouter key is set).</p>
+  }
+
+  if (!current || !data?.ai_summary) {
+    return (
+      <div className="ai-note-loading" role="status">
+        <Skeleton height={14} />
+        <Skeleton height={14} width="70%" />
+        <p className="muted small">Writing a plain-language note. This can take a few seconds; the analysis does not wait for it.</p>
+      </div>
+    )
+  }
+
+  // A note that cites a figure not in the analysis, or puts a number on the
+  // wrong unit, never reaches here: the server rejects it and tries the next
+  // model, and if none is faithful the analysis stands alone.
+  const { text, model } = data.ai_summary
   return (
-    <div className="skeleton-stack" role="status">
-      <p className="muted small">Writing a plain-language summary. On the free model this can take up to a minute; the numbers above do not depend on it.</p>
-      <Skeleton height={14} />
-      <Skeleton height={14} width="92%" />
-      <Skeleton height={14} width="60%" />
+    <div className="ai-note">
+      <p className="ai-summary">{text}</p>
+      <p className="muted small">
+        Written by {model.replace(/:free$/, '')}. It restates the analysis in plain words and adds nothing to it.
+      </p>
     </div>
   )
 }
 
-export default function AdvisoryPanel({ resource }) {
-  const data = resource.data
-  const advisory = data?.advisory
-  const unsupported = data?.unsupported_numbers ?? []
-
-  // The LLM restates the forecast, but nothing forces it to agree with the
-  // model's own risk level - and it does not always. When they differ, say so
-  // rather than leaving two contradictory verdicts side by side on one screen.
-  const modelLevel = data?.forecast?.ml_model?.risk_level
-  const degenerate = data?.forecast?.agreement?.threshold_degenerate
-  const disagrees =
-    advisory && modelLevel && !degenerate && canon(advisory.rainfall_risk) !== canon(modelLevel)
+export default function AdvisoryPanel({ analysis, ai }) {
+  const data = analysis.data
+  const result = data?.analysis
+  const district = data?.forecast?.district
 
   return (
-    <Panel
-      id="ai"
-      eyebrow="AI summary"
-      title="Plain-language advisory"
-      resource={resource}
-      skeleton={<WritingSkeleton />}
-    >
-      {data && !advisory ? (
-        <p className="callout callout-info">
-          <Icon name="info" size={16} />
-          <span>
-            {data.llm_error ?? 'No AI summary is available.'} Every number on this page comes from the forecast models and is
-            unaffected.
-          </span>
-        </p>
-      ) : null}
-
-      {advisory ? (
+    <Panel id="ai" eyebrow="Analysis" title="Forecast analysis" resource={analysis}>
+      {result ? (
         <div className="ai">
-          <p className="ai-summary">{advisory.forecast_summary}</p>
+          <p className="analysis-headline">{result.headline}</p>
 
           <p className="status-line">
-            <Chip tone={LEVEL_TONE[String(advisory.rainfall_risk).toLowerCase()] ?? 'neutral'}>
-              Rainfall risk: {humanise(advisory.rainfall_risk)}
+            {result.risk_meaningful ? (
+              <Chip tone={RISK_TONE[result.risk_level] ?? 'neutral'} icon={RISK_ICON[result.risk_level]}>
+                {humanise(result.risk_level)} dry-week risk
+              </Chip>
+            ) : (
+              <Chip tone="info" icon="info">Dry week is normal here</Chip>
+            )}
+            <Chip tone={result.confidence === 'low' ? 'moderate' : 'neutral'} icon={result.confidence === 'low' ? 'alert-triangle' : undefined}>
+              {humanise(result.confidence)} confidence
             </Chip>
-            <Chip tone="neutral">Confidence: {humanise(advisory.confidence)}</Chip>
           </p>
 
-          {disagrees ? (
-            <p className="callout callout-warn">
-              <Icon name="alert-triangle" size={16} />
-              <span>
-                This summary rates the risk <strong>{humanise(advisory.rainfall_risk)}</strong>, but the forecast model
-                says <strong>{humanise(modelLevel)}</strong>. The model’s figure, shown at the top of the page, is the
-                one to rely on.
-              </span>
-            </p>
+          {result.confidence_reasons.length ? (
+            <ul className="reasons">
+              {result.confidence_reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
           ) : null}
 
-          <div className="ai-columns">
-            <List title="Key factors" items={advisory.key_factors} />
-            <List title="Where the sources differ" items={advisory.model_disagreement} />
-            <List title="What to do" items={advisory.advisory} ordered />
+          <div className="ai-note-wrap">
+            <h3 className="ai-heading">In plain words</h3>
+            <AiNote ai={ai} district={district} />
           </div>
 
-          {unsupported.length ? (
-            <p className="callout callout-warn" role="alert">
-              <Icon name="alert-triangle" size={16} />
-              <span>
-                The summary mentions figures that could not be traced back to the forecast data ({unsupported.join(', ')}).
-                Check them against the numbers on this page before relying on them.
-              </span>
-            </p>
-          ) : null}
+          <div className="ai-columns">
+            <List title="Key factors" items={result.key_factors} />
+            <List title="Where the sources differ" items={result.model_disagreement} />
+            <List title="What to do" items={result.actions} ordered />
+          </div>
 
-          <p className="muted small">
-            Written by {data.llm_model}. It restates the forecast; it does not add to it.
-          </p>
+          <p className="muted small">{data.note}</p>
         </div>
       ) : null}
     </Panel>
